@@ -1,104 +1,142 @@
-<!DOCTYPE html> <html lang="zh-CN"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>摸鱼工具箱 | 3D 门户</title> <style> /* CSS 样式区：这里负责捏出卡片的“立体质感” */
+<!DOCTYPE html> <html lang="zh-CN"> <head>
+    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>老师的工作室 | 3D 拟物门户 v2.0</title>
+    <style> /* CSS 开始：捏出你的专属“静奢风” */
         
-        body { /* 网页背景设置 */
-            background-color: #fcf9f2; /* 使用你喜欢的奶油色作为背景底色 */
-            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; /* 设置清爽、高级的字体 */
-            display: flex; /* 开启弹性布局，方便内容居中 */
-            flex-direction: column; /* 内容垂直向下排列 */
-            align-items: center; /* 水平居中对齐 */
-            padding: 50px 20px; /* 上下留出 50 像素，左右留出 20 像素的间距 */
-            margin: 0; /* 清除默认边距 */
+        body { 
+            background-color: #fcf9f2; /* 奶油底色 */
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 50px 20px; margin: 0;
         }
 
-        .header h1 { /* 主标题样式 */
-            color: #6a5d8a; /* 选用你偏爱的莫兰迪深紫色 */
-            font-size: 32px; /* 标题大小 */
-            margin-bottom: 45px; /* 标题和下方卡片的间距 */
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.05); /* 文字微弱投影，显出层次 */
+        /* 顶部标题区域 */
+        .header { text-align: center; margin-bottom: 40px; }
+        h1 { color: #6a5d8a; font-size: 32px; text-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+
+        /* 背景音乐开关样式：捏一个圆圆的 3D 按钮 */
+        .music-toggle {
+            position: fixed; top: 20px; right: 20px; /* 固定在右上角 */
+            width: 50px; height: 50px; background: #ffffff;
+            border-radius: 50%; border: 4px solid #ffffff;
+            box-shadow: 6px 6px 15px #d9d6ce, -6px -6px 15px #ffffff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100; transition: 0.3s;
+        }
+        .music-toggle:active { transform: scale(0.9); box-shadow: inset 4px 4px 8px #d9d6ce; }
+
+        /* 网格布局 */
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 30px; width: 100%; max-width: 1200px; 
         }
 
-        .grid { /* 存放卡片的网格系统 */
-            display: grid; /* 开启网格布局 */
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* 根据屏幕宽度自动调整卡片列数 */
-            gap: 35px; /* 卡片之间的间距，保持呼吸感 */
-            width: 100%; /* 宽度撑满 */
-            max-width: 1100px; /* 最大宽度限制，防止在大屏下太散 */
+        /* 3D 黏土卡片通用样式 */
+        .clay-card {
+            background: #ffffff; border-radius: 40px; padding: 35px;
+            text-decoration: none; display: flex; flex-direction: column; align-items: center;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 20px 20px 60px #d9d6ce, -20px -20px 60px #ffffff,
+                        inset 4px 4px 12px rgba(255,255,255,0.8);
+            border: 10px solid #ffffff;
         }
+        .clay-card:hover { transform: translateY(-10px); box-shadow: 10px 10px 30px #d9d6ce; }
 
-        .clay-card { /* 核心：这是我们要捏出来的 3D 黏土卡片样式 */
-            background: #ffffff; /* 卡片白底 */
-            border-radius: 40px; /* 超大圆角，增加圆润、卡通的黏土感 */
-            padding: 40px; /* 内部留白，让内容不拥挤 */
-            text-decoration: none; /* 去掉链接默认的下划线 */
-            display: flex; /* 内部也用弹性布局 */
-            flex-direction: column; /* 垂直排列图标和文字 */
-            align-items: center; /* 水平居中 */
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 设置平滑且有弹性的动画 */
-            
-            /* 关键：利用多层阴影模拟真实的 3D 浮雕质感 */
-            box-shadow: 
-                20px 20px 60px #d9d6ce, /* 右下方深色柔和阴影 */
-                -20px -20px 60px #ffffff, /* 左上方亮色高光反光 */
-                inset 4px 4px 12px rgba(255,255,255,0.8); /* 内部微弱高光，增加体积感 */
-            
-            border: 10px solid #ffffff; /* 宽厚的纯白边框，强化 3D 视觉效果 */
-        }
+        /* 日志卡片专用样式：不具备跳转功能，纯展示 */
+        .log-card { cursor: default; }
+        .log-card:hover { transform: none; } /* 日志卡片不需要悬浮动画 */
 
-        .clay-card:hover { /* 鼠标悬停时的动态反馈 */
-            transform: translateY(-15px); /* 卡片向上浮起 15 像素 */
-            box-shadow: 10px 10px 30px #d9d6ce; /* 悬浮时阴影变浅，模拟物理真实感 */
-        }
+        .img-icon { width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0px 8px 12px rgba(0,0,0,0.1)); }
+        .title { font-weight: bold; font-size: 20px; color: #7d7396; margin-bottom: 10px; }
+        .desc { font-size: 14px; color: #a79dc1; text-align: center; line-height: 1.6; }
 
-        .img-icon { /* 3D 拟物图标样式 */
-            width: 90px; /* 设定图标宽度 */
-            height: 90px; /* 设定图标高度 */
-            margin-bottom: 25px; /* 距离下方标题的间距 */
-            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.1)); /* 给图标也加点立体影 */
+        /* 日志列表样式 */
+        .log-list { 
+            text-align: left; width: 100%; margin-top: 15px; 
+            font-size: 13px; color: #8e84ad; border-top: 1px dashed #e0daeb; padding-top: 15px;
         }
+        .log-item { margin-bottom: 8px; display: flex; align-items: flex-start; }
+        .log-date { font-weight: bold; margin-right: 8px; white-space: nowrap; }
 
-        .title { /* 工具标题样式 */
-            font-weight: bold; /* 字体加粗 */
-            font-size: 20px; /* 字号大小 */
-            color: #7d7396; /* 莫兰迪紫色调 */
-            margin-bottom: 12px; /* 标题与描述的间距 */
-        }
-
-        .desc { /* 描述文字样式 */
-            font-size: 14px; /* 字号略小 */
-            color: #a79dc1; /* 浅紫灰色，保持视觉舒适度 */
-            text-align: center; /* 文字居中排列 */
-            line-height: 1.8; /* 增加行间距，方便阅读 */
-        }
     </style>
 </head>
 <body>
 
-    <div class="header"> <h1>🎨 摸鱼工具箱 · 3D 门户</h1>
+    <audio id="bgMusic" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="music-toggle" onclick="toggleMusic()" title="背景音乐开关">
+        <span id="musicIcon" style="font-size: 24px;">🔇</span>
     </div>
 
-    <div class="grid"> <a href="教师占档表整理工具v11.0.html" class="clay-card">
-            <img src="https://cdn-icons-png.flaticon.com/512/6211/6211562.png" class="img-icon" alt="Folder">
-            <div class="title">占档表整理工具</div>
-            <div class="desc">版本 v11.0：快速整理排课数据，让教务管理更具逻辑美感</div>
+    <div class="header">
+        <h1>🎨 摸鱼工具箱 · 3D 门户</h1>
+    </div>
+
+    <div class="grid">
+        
+        <a href="名卡制作器v2.0.html" class="clay-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/5696/5696011.png" class="img-icon">
+            <div class="title">名卡制作器</div>
+            <div class="desc">版本 v2.0：一键捏出 3D 黏土风格卡片</div>
         </a>
 
-        <a href="名卡制作器v2.0.html" class="clay-card">
-            <img src="https://cdn-icons-png.flaticon.com/512/5696/5696011.png" class="img-icon" alt="Tag">
-            <div class="title">名卡制作器</div>
-            <div class="desc">版本 v2.0：一键生成 3D 风格精美名卡</div>
+        <a href="升班测人数核算v2.5.0.html" class="clay-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/6211/6211562.png" class="img-icon">
+            <div class="title">升班测核算</div>
+            <div class="desc">版本 v2.5.0：智能统计续报，精准把控校区数据</div>
         </a>
 
         <a href="学员成绩分析报告v7.5.0.html" class="clay-card">
-            <img src="https://cdn-icons-png.flaticon.com/512/4149/4149661.png" class="img-icon" alt="Chart">
+            <img src="https://cdn-icons-png.flaticon.com/512/4149/4149661.png" class="img-icon">
             <div class="title">成绩分析报告</div>
-            <div class="desc">版本 v7.5.0：用奥数级精准度剖析学情，让反馈更具专业深度</div>
+            <div class="desc">版本 v7.5.0：奥数级学情剖析，反馈更专业</div>
         </a>
 
         <a href="一分一段表v3.0.html" class="clay-card">
-            <img src="https://cdn-icons-png.flaticon.com/512/4149/4149673.png" class="img-icon" alt="Graph">
+            <img src="https://cdn-icons-png.flaticon.com/512/4149/4149673.png" class="img-icon">
             <div class="title">一分一段表</div>
-            <div class="desc">版本 v3.0：智能班型匹配系统，科学定位教学方向与招生选拔</div>
+            <div class="desc">版本 v3.0：智能班型匹配，科学定位招生方向</div>
         </a>
 
-    </div> </body>
+        <div class="clay-card log-card">
+            <img src="https://cdn-icons-png.flaticon.com/512/3593/3593510.png" class="img-icon" style="width: 60px; height: 60px;">
+            <div class="title">工作室日志</div>
+            <div class="log-list">
+                <div class="log-item">
+                    <span class="log-date">02.08</span> 
+                    <span>上线 3D 门户 v2.0，新增背景音乐与日志功能。</span>
+                </div>
+                <div class="log-item">
+                    <span class="log-date">02.07</span> 
+                    <span>修复“一分一段表”文件名空格导致的 404 错误。</span>
+                </div>
+                <div class="log-item">
+                    <span class="log-date">02.06</span> 
+                    <span>全面升级 3D 拟物图标与莫兰迪紫色调。</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 背景音乐开关逻辑
+        const music = document.getElementById('bgMusic');
+        const icon = document.getElementById('musicIcon');
+        let isPlaying = false;
+
+        function toggleMusic() {
+            if (isPlaying) {
+                music.pause(); // 暂停
+                icon.innerText = "🔇"; // 切换图标
+            } else {
+                music.play(); // 播放
+                icon.innerText = "🔊"; // 切换图标
+            }
+            isPlaying = !isPlaying; // 逻辑反转
+        }
+    </script>
+</body>
 </html>

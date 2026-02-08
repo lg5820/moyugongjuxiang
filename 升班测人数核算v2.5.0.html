@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>升班测全流程核算系统 v2.5.0</title>
+    <!-- 加载 React 和相关工具库 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif; background-color: #f1f5f9; }
+        
+        .table-container { 
+            overflow: auto; 
+            max-height: 60vh; 
+            border: 2px solid #64748b; 
+            border-radius: 0.75rem;
+            background: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .sticky-header th { position: sticky; top: 0; z-index: 30; }
+        .sticky-header-row-2 th { position: sticky; top: 40px; z-index: 30; }
+        .sticky-col { position: sticky; left: 0; z-index: 40; border-right: 2px solid #64748b !important; background: inherit; }
+
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .status-badge { padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 900; display: inline-block; white-space: nowrap; }
+        .remark-text { font-size: 13px; line-height: 1.5; font-weight: 800; color: #1e293b; }
+        
+        table { border-collapse: collapse; width: 100%; font-size: 14px; }
+        th { border: 1px solid #94a3b8; }
+        td { border: 1px solid #cbd5e1; padding: 12px 10px; color: #000000; font-weight: 700; }
+
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .row-promoted { background-color: #f0fdf4 !important; }
+        .row-invited { background-color: #f5f3ff !important; }
+        
+        .search-focus:focus-within { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }
+
+        .phase1-header { background-color: #5271FF !important; color: white !important; }
+        .col-quota-invited { background-color: #eef2ff !important; }
+        .col-quota-promo { background-color: #ecfdf5 !important; }
+    </style>
+</head>
+<body class="text-slate-950">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        const Icon = ({ name, size = 16, className = "" }) => {
+            const icons = {
+                table: <path d="M12 3v18M3 9h18M3 15h18M3 3h18v18H3z" />,
+                upload: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />,
+                download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
+                settings: <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>,
+                calculator: (
+                    <React.Fragment>
+                        <rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>
+                    </React.Fragment>
+                ),
+                user: (
+                    <React.Fragment>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </React.Fragment>
+                ),
+                sort: <path d="m15 9-3-3-3 3m0 6 3 3 3-3"/>,
+                award: (
+                    <React.Fragment>
+                        <circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+                    </React.Fragment>
+                ),
+                trash: <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>,
+                check: <polyline points="20 6 9 17 4 12" />,
+                search: (
+                    <React.Fragment>
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </React.Fragment>
+                ),
+                fileText: (
+                  <React.Fragment>
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>
+                  </React.Fragment>
+                )
+            };
+            return (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name]}
+                </svg>
+            );
+        };
+
+        const App = () => {
+            const [classData, setClassData] = useState([]);
+            const [scoreData, setScoreData] = useState([]);
+            const [classFileName, setClassFileName] = useState("");
+            const [scoreFileName, setScoreFileName] = useState("");
+            const [selectedLeft, setSelectedLeft] = useState(["L3", "L4", "A3", "A4", "A5", "A6"]);
+            const [selectedRight, setSelectedRight] = useState(["L3", "L4", "A3", "A4", "A5", "A6"]);
+            const [testCounts, setTestCounts] = useState({ A3: "", A4: "" });
+            const [finalCounts, setFinalCounts] = useState({ A3: "", A4: "" });
+            const [scoreSort, setScoreSort] = useState({ key: 'avg', direction: 'desc' });
+            const [searchTerm, setSearchTerm] = useState("");
+            const [showPromotedOnly, setShowPromotedOnly] = useState(false);
+
+            const memoryKey = 'enrollment_system_memory_v2.5.0_pro';
+
+            useEffect(() => {
+                const saved = localStorage.getItem(memoryKey);
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.classData) setClassData(parsed.classData);
+                        if (parsed.scoreData) setScoreData(parsed.scoreData);
+                        if (parsed.classFileName) setClassFileName(parsed.classFileName);
+                        if (parsed.scoreFileName) setScoreFileName(parsed.scoreFileName);
+                        if (parsed.testCounts) setTestCounts(parsed.testCounts);
+                        if (parsed.finalCounts) setFinalCounts(parsed.finalCounts);
+                    } catch (e) {}
+                }
+            }, []);
+
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    const data = { classData, scoreData, classFileName, scoreFileName, testCounts, finalCounts };
+                    localStorage.setItem(memoryKey, JSON.stringify(data));
+                }, 500);
+                return () => clearTimeout(timer);
+            }, [classData, scoreData, classFileName, scoreFileName, testCounts, finalCounts]);
+
+            const clearMemory = () => {
+                if (window.confirm("确定重置所有数据？此操作不可恢复。")) {
+                    localStorage.removeItem(memoryKey);
+                    window.location.reload();
+                }
+            };
+
+            const downloadTemplate = (type) => {
+              const wb = XLSX.utils.book_new();
+              if (type === 'class') {
+                const data = [{ "班型": "A3", "上课时间类型": "零期", "报名人数": 100 }];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "班级统计");
+                XLSX.writeFile(wb, "班级导入模板.xlsx");
+              } else {
+                const headers = ["姓名", "讲师姓名", "学校", "上课时间类型", "班型", "期末测试", "升班测"];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ["学生甲", "讲师A", "某某分校", "零期", "A3", 90, ""]]), "示例成绩单");
+                XLSX.writeFile(wb, "分数导入模板.xlsx");
+              }
+            };
+
+            const findColumn = (hs, ts) => hs.find(h => ts.some(t => h.includes(t)));
+
+            const handleUpload = (e, type) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                    if (type === 'class') {
+                        setClassFileName(file.name);
+                        setClassData(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]));
+                    } else {
+                        setScoreFileName(file.name);
+                        let combined = [];
+                        workbook.SheetNames.forEach(name => { combined = [...combined, ...XLSX.utils.sheet_to_json(workbook.Sheets[name])]; });
+                        setScoreData(combined);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            const parseNum = (val) => {
+                if (typeof val === 'number') return val;
+                const n = parseFloat(val);
+                return isNaN(n) ? null : n;
+            };
+
+            const timeOrder = ["零期", "一期", "二期", "三期", "周中段", "星期六", "星期日"];
+            const classOrder = ["L3", "L4", "A3", "A4", "A5", "A6", "A7"];
+
+            const engineResult = useMemo(() => {
+                if (!classData.length) return { quotaStats: null, activeTimes: [], cutoffs: {}, studentList: [] };
+
+                const stats = {};
+                const foundTimes = new Set();
+                classOrder.forEach(c => { stats[c] = { total: 0, times: {} }; });
+                classData.forEach(row => {
+                    const matchedClass = classOrder.find(ct => String(row["班型"]||"").toUpperCase().includes(ct));
+                    if (!matchedClass) return;
+                    let time = String(row["上课时间类型"]||"").trim();
+                    if (!time) return;
+                    if (["周", "星期"].some(d => time.includes(d)) && !["六", "日"].some(d => time.includes(d))) time = "周中段";
+                    foundTimes.add(time);
+                    const enroll = parseInt(row["报名人数"]) || 0;
+                    stats[matchedClass].times[time] = (stats[matchedClass].times[time] || 0) + enroll;
+                    stats[matchedClass].total += enroll;
+                });
+                const activeTimes = timeOrder.filter(t => foundTimes.has(t));
+
+                if (!scoreData.length) return { quotaStats: stats, activeTimes, cutoffs: {}, studentList: [] };
+
+                const hs = Object.keys(scoreData[0]);
+                const hsRef = {
+                    name: findColumn(hs, ["姓名"]), teacher: findColumn(hs, ["讲师", "老师"]), campus: findColumn(hs, ["学校", "校区"]),
+                    final: findColumn(hs, ["期末测试", "期末成绩"]), test: findColumn(hs, ["升班测", "进阶测"]),
+                    time: findColumn(hs, ["时间类型", "上课时间类型"]), class: findColumn(hs, ["班型", "原班型"])
+                };
+
+                const pool = scoreData.map(s => {
+                    let time = String(s[hsRef.time]||"").trim();
+                    if (["周", "星期"].some(d => time.includes(d)) && !["六", "日"].some(d => time.includes(d))) time = "周中段";
+                    const f = parseNum(s[hsRef.final]);
+                    const t = parseNum(s[hsRef.test]);
+                    return {
+                        uid: `${s[hsRef.name]}-${s[hsRef.teacher]}-${s[hsRef.campus]}`,
+                        studentName: s[hsRef.name], teacherName: s[hsRef.teacher], campusName: s[hsRef.campus],
+                        normTime: time, finalScore: f, testScore: t, classType: String(s[hsRef.class]||""),
+                        avg: (f !== null && t !== null) ? (f + t) / 2 : -1
+                    };
+                }).filter(s => s.finalScore !== null);
+
+                const cutoffs = {};
+                const invitedIds = new Set();
+                const promotedIds = new Set();
+
+                classOrder.forEach(cls => {
+                    activeTimes.forEach(time => {
+                        const sub = stats[cls]?.times[time] || 0;
+                        const tot = stats[cls]?.total || 0;
+                        if (tot === 0) return;
+                        const ratio = sub / tot;
+                        const key = `${cls}-${time}`;
+                        cutoffs[key] = { test: "--", final: "--" };
+
+                        const tLimit = Math.ceil(parseFloat(testCounts[cls]) * ratio);
+                        if (tLimit > 0) {
+                            const group = pool.filter(s => s.classType.includes(cls) && s.normTime === time).sort((a,b)=>b.finalScore - a.finalScore);
+                            const cutoff = group[Math.min(tLimit, group.length)-1]?.finalScore;
+                            cutoffs[key].test = cutoff;
+                            group.forEach(s => { if(s.finalScore >= cutoff) invitedIds.add(s.uid); });
+                        }
+
+                        const fLimit = Math.ceil(parseFloat(finalCounts[cls]) * ratio);
+                        if (fLimit > 0) {
+                            const candidates = pool.filter(s => s.classType.includes(cls) && s.normTime === time && invitedIds.has(s.uid) && s.testScore !== null).sort((a,b)=>b.avg - a.avg);
+                            const cutoffAvg = candidates[Math.min(fLimit, candidates.length)-1]?.avg;
+                            cutoffs[key].final = cutoffAvg?.toFixed(1) || "--";
+                            candidates.forEach(s => { if(s.avg >= cutoffAvg) promotedIds.add(s.uid); });
+                        }
+                    });
+                });
+
+                const studentList = pool.map(s => {
+                    const isInvited = invitedIds.has(s.uid);
+                    const isPromoted = promotedIds.has(s.uid);
+                    let rem = isInvited ? "期末分数过线" : "期末分数未达线（资格终止）";
+                    if (isInvited && s.testScore !== null) rem += isPromoted ? "；加测后均分达标，成功升班" : "；加测后均分遗憾未达标";
+                    return { ...s, isInvited, isPromoted, remark: rem };
+                });
+
+                return { quotaStats: stats, activeTimes, cutoffs, studentList };
+            }, [classData, scoreData, testCounts, finalCounts]);
+
+            const tableList = useMemo(() => {
+                let list = engineResult.studentList.filter(s => selectedRight.some(sel => s.classType.includes(sel)));
+                if (searchTerm) list = list.filter(s => s.studentName?.includes(searchTerm));
+                if (showPromotedOnly) list = list.filter(s => s.isPromoted);
+                if (scoreSort.key) {
+                    list.sort((a, b) => {
+                        let av = a[scoreSort.key], bv = b[scoreSort.key];
+                        if (typeof av === 'string') return scoreSort.direction === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+                        return scoreSort.direction === 'asc' ? (av > bv ? 1 : -1) : (bv > av ? 1 : -1);
+                    });
+                }
+                return list;
+            }, [engineResult.studentList, selectedRight, searchTerm, showPromotedOnly, scoreSort]);
+
+            // 核心：导出功能
+            const handleExport = () => {
+                if (!tableList.length) return;
+                const wb = XLSX.utils.book_new();
+                const grouped = {};
+                tableList.forEach(s => {
+                    if (!grouped[s.normTime]) grouped[s.normTime] = [];
+                    grouped[s.normTime].push({
+                        "上课时间": s.normTime, "班型": s.classType, "老师": s.teacherName, "分校": s.campusName, "学员姓名": s.studentName,
+                        "期末成绩": s.finalScore, "升班成绩": s.testScore ?? "--", "平均分": s.avg === -1 ? "--" : s.avg.toFixed(1),
+                        "录取状态": s.isPromoted ? "成功升班" : (s.isInvited ? "加测通过" : "未入选"), "核算明细备注": s.remark
+                    });
+                });
+                Object.keys(grouped).forEach(time => {
+                    const ws = XLSX.utils.json_to_sheet(grouped[time].sort((a, b) => (parseFloat(b["平均分"])||0) - (parseFloat(a["平均分"])||0)));
+                    XLSX.utils.book_append_sheet(wb, ws, time);
+                });
+                XLSX.writeFile(wb, `升班测核算名册_${new Date().toLocaleDateString()}.xlsx`);
+            };
+
+            return (
+                <div className="min-h-screen p-4 lg:p-8 fade-in">
+                    <div className="max-w-[1750px] mx-auto space-y-6">
+                        
+                        <header className="bg-white rounded-3xl shadow-lg border-2 border-slate-300 p-6 flex flex-col xl:flex-row items-center justify-between gap-8 text-slate-950 font-black">
+                            <div className="flex items-center gap-6">
+                                <div className="p-4 bg-slate-900 rounded-3xl text-white shadow-xl relative group transition-transform hover:scale-105 cursor-pointer">
+                                    <Icon name="table" size={32} />
+                                    <button onClick={clearMemory} className="absolute -top-3 -right-3 bg-rose-600 hover:rotate-12 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-all shadow-lg border-2 border-white">
+                                        <Icon name="trash" size={14} />
+                                    </button>
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black text-slate-950 tracking-tight flex flex-col gap-1">
+                                        升班核算管理中心
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">v2.5.0 (郭哥救我QAQ)</span>
+                                    </h1>
+                                    <div className="flex gap-4 mt-4">
+                                        <div className="flex flex-col gap-1">
+                                          <label className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 rounded-2xl cursor-pointer border-2 border-slate-400 text-sm font-black hover:bg-slate-200 transition-all shadow-sm group">
+                                              <Icon name="upload" size={16} className="text-slate-500 group-hover:text-indigo-600" />
+                                              {classFileName ? <span className="text-emerald-700">已加载班级表</span> : <span>导入班级表</span>}
+                                              <input type="file" accept=".xlsx, .xls" onChange={(e)=>handleUpload(e, 'class')} className="hidden" />
+                                          </label>
+                                          <button onClick={()=>downloadTemplate('class')} className="text-[10px] font-black text-indigo-700 underline ml-2">下载班级表模板</button>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                          <label className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl cursor-pointer border-2 text-sm font-black transition-all shadow-sm group ${scoreFileName ? 'bg-emerald-50 border-emerald-500 text-emerald-900' : 'bg-indigo-600 border-indigo-700 text-white'}`}>
+                                              <Icon name="upload" size={16} />
+                                              {scoreFileName ? <span>已加载分数表</span> : <span>导入分数表</span>}
+                                              <input type="file" accept=".xlsx, .xls" onChange={(e)=>handleUpload(e, 'score')} className="hidden" />
+                                          </label>
+                                          <button onClick={()=>downloadTemplate('score')} className="text-[10px] font-black text-indigo-700 underline ml-2">下载分数表模板</button>
+                                        </div>
+                                        {tableList.length > 0 && (
+                                            <button onClick={handleExport} className="h-[44px] flex items-center gap-2 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black transition-all shadow-lg active:scale-95">
+                                                <Icon name="download" size={16} /> 导出结果明细
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 p-5 rounded-3xl border-2 border-slate-300 grid grid-cols-2 gap-12 shadow-inner">
+                                {["A3", "A4"].map(type => (
+                                    <div key={type} className="flex gap-4 items-center">
+                                        <div className="text-sm font-black text-indigo-800 uppercase w-28">
+                                          {type === "A3" ? "A3升A4预设" : "A4升A5预设"}
+                                        </div>
+                                        <div className="relative w-28 group">
+                                            <span className="absolute left-3 top-0.5 text-[9px] font-black text-slate-500 uppercase">待测</span>
+                                            <input type="number" value={testCounts[type]} onChange={(e)=>setTestCounts(p=>({...p, [type]:e.target.value}))} className="w-full pt-4 pb-1 px-3 border-2 border-slate-400 rounded-xl font-black text-[15px] outline-none focus:ring-4 ring-indigo-400/20 bg-white" placeholder="待测" />
+                                        </div>
+                                        <div className="relative w-28 group">
+                                            <span className="absolute left-3 top-0.5 text-[9px] font-black text-emerald-600 uppercase">升班</span>
+                                            <input type="number" value={finalCounts[type]} onChange={(e)=>setFinalCounts(p=>({...p, [type]:e.target.value}))} className="w-full pt-4 pb-1 px-3 border-2 border-emerald-400 bg-emerald-50 rounded-xl font-black text-[15px] outline-none focus:ring-4 ring-emerald-400/10 shadow-sm" placeholder="升班" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </header>
+
+                        {engineResult.quotaStats ? (
+                            <div className="flex flex-col gap-6">
+                                <div className="bg-white rounded-3xl shadow-md border-2 border-slate-400 overflow-hidden">
+                                    <div className="bg-indigo-900 p-4 px-8 text-white flex justify-between items-center">
+                                        <div className="flex items-center gap-3 text-base font-black uppercase tracking-widest">
+                                            <Icon name="award" size={20}/> 录取划线统计预览
+                                        </div>
+                                    </div>
+                                    <div className="p-4 overflow-x-auto custom-scrollbar bg-white">
+                                        <div className="flex gap-6 min-w-max pb-2 font-black">
+                                            {engineResult.activeTimes.map(time => (
+                                                <div key={time} className="flex-1 bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 min-w-[260px] shadow-sm">
+                                                    <div className="text-sm font-black text-indigo-900 uppercase mb-4 border-b-2 border-indigo-100 pb-2 text-center">{time}</div>
+                                                    <div className="space-y-3 font-black">
+                                                        {classOrder.filter(c => engineResult.cutoffs[`${c}-${time}`] && (engineResult.cutoffs[`${c}-${time}`].test !== '--' || engineResult.cutoffs[`${c}-${time}`].final !== '--')).map(cls => (
+                                                            <div key={cls} className="flex justify-between items-center border-b border-slate-200 pb-1">
+                                                                <span className="font-black text-slate-900 text-sm">{cls}</span>
+                                                                <div className="flex gap-2 font-black text-white">
+                                                                    <div className="bg-blue-600 px-2.5 py-1 rounded-lg text-xs">加测 {engineResult.cutoffs[`${cls}-${time}`].test}</div>
+                                                                    <div className="bg-emerald-600 px-2.5 py-1 rounded-lg text-xs">升班 {engineResult.cutoffs[`${cls}-${time}`].final}</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl shadow-md border-2 border-slate-400 overflow-hidden">
+                                    <div className="phase1-header p-4 px-8 text-white flex justify-between items-center shadow-lg">
+                                        <div className="flex items-center gap-3 text-base font-black uppercase tracking-widest">
+                                            <Icon name="settings" size={20}/> 时段名额占比核算 (Phase 1)
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-black uppercase tracking-wider">班型筛选:</span>
+                                            <div className="flex gap-1.5">
+                                                {classOrder.slice(0, 6).map(c => (
+                                                    <button key={c} onClick={()=>setSelectedLeft(p => p.includes(c) ? p.filter(i=>i!==c) : [...p, c])} className={`px-3 py-1 rounded-xl text-xs font-black transition-all border-2 ${selectedLeft.includes(c) ? 'bg-white text-blue-700 border-white shadow-md' : 'bg-transparent text-white/70 border-white/30 hover:border-white/60'}`}>{c}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="table-container custom-scrollbar">
+                                        <table className="table-fixed min-w-[1200px]">
+                                            <thead className="sticky-header shadow-md">
+                                                <tr className="bg-slate-950 text-white font-black text-sm uppercase">
+                                                    <th rowSpan="2" className="p-4 border-r border-slate-700 sticky-col bg-slate-950 z-50 w-28 text-center">班型维度</th>
+                                                    {engineResult.activeTimes.map(t => (
+                                                        <th key={t} colSpan="4" className="p-3 text-center border-r border-slate-700 border-b border-slate-700 font-black text-white">{t}</th>
+                                                    ))}
+                                                    <th rowSpan="2" className="p-4 border-l border-slate-700 w-32 text-center bg-blue-900 text-white font-black">总报名人数</th>
+                                                </tr>
+                                                <tr className="bg-slate-800 text-white text-xs uppercase tracking-widest font-black">
+                                                    {engineResult.activeTimes.map(t => (
+                                                        <React.Fragment key={`${t}-sub`}>
+                                                            <th className="px-1 py-3 font-black w-14 text-center border-r border-slate-700">报名</th>
+                                                            <th className="px-1 py-3 font-black w-14 text-center border-r border-slate-700">比例</th>
+                                                            <th className="px-1 py-3 font-black w-14 text-center border-r border-slate-700 bg-indigo-900">测额</th>
+                                                            <th className="px-1 py-3 font-black w-14 text-center border-r border-slate-700 bg-emerald-900">升额</th>
+                                                        </React.Fragment>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="font-black text-center text-slate-950">
+                                                {classOrder.filter(c => selectedLeft.includes(c)).map((cls, idx) => {
+                                                    const row = engineResult.quotaStats[cls];
+                                                    if (!row || row.total === 0) return null;
+                                                    return (
+                                                        <tr key={cls} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-indigo-50 transition-colors border-b border-slate-300`}>
+                                                            <td className="p-4 font-black border-r-2 border-slate-400 sticky-col bg-inherit z-20 text-slate-950 text-base">{cls}</td>
+                                                            {engineResult.activeTimes.map(t => {
+                                                                const count = row.times[t] || 0;
+                                                                const ratio = count / row.total;
+                                                                const tQuota = Math.ceil(parseFloat(testCounts[cls]) * ratio) || "--";
+                                                                const fQuota = Math.ceil(parseFloat(finalCounts[cls]) * ratio) || "--";
+                                                                return (
+                                                                    <React.Fragment key={`${cls}-${t}`}>
+                                                                        <td className="p-3 border-r border-slate-200 text-slate-600 font-mono font-black">{count}</td>
+                                                                        <td className="p-3 border-r border-slate-200 text-slate-950 font-black">{(ratio * 100).toFixed(1)}%</td>
+                                                                        <td className="p-3 border-r-2 border-slate-300 font-black text-indigo-700 col-quota-invited">{tQuota}</td>
+                                                                        <td className="p-3 border-r-2 border-slate-300 font-black text-emerald-700 col-quota-promo">{fQuota}</td>
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                            <td className="p-4 font-black bg-slate-100 text-blue-900 border-l-2 border-slate-400 text-lg">{row.total}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl shadow-md border-2 border-slate-950 overflow-hidden">
+                                    <div className="bg-slate-950 p-5 px-8 text-white flex flex-col xl:flex-row justify-between items-center gap-6 shadow-xl font-black">
+                                        <div className="flex items-center gap-5">
+                                            <div className="flex items-center gap-3 text-base font-black uppercase tracking-widest">
+                                                <Icon name="user" size={24} className="text-indigo-400"/> 智能核算明细名单 (Phase 2)
+                                            </div>
+                                            <div className="flex items-center gap-6 text-sm font-black border-l-2 border-slate-700 pl-8 text-slate-300 uppercase tracking-tighter">
+                                                <div className="flex items-center gap-2"><span className="text-emerald-400 text-2xl font-black">{(engineResult.studentList.filter(s=>s.isPromoted)).length}</span> 成功升班</div>
+                                                <div className="flex items-center gap-2"><span className="text-indigo-300 text-2xl font-black">{(engineResult.studentList.filter(s=>s.isInvited)).length}</span> 入围加测</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex flex-wrap items-center gap-6 font-black">
+                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                <div className={`w-12 h-6 rounded-full relative transition-colors ${showPromotedOnly ? 'bg-emerald-500' : 'bg-slate-700'}`} onClick={() => setShowPromotedOnly(!showPromotedOnly)}>
+                                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${showPromotedOnly ? 'left-6.5' : 'left-1.5'}`}></div>
+                                                </div>
+                                                <span className="text-xs font-black text-slate-300 uppercase tracking-widest group-hover:text-white">只看升班</span>
+                                            </label>
+                                            <div className="relative search-focus group w-64 transition-all">
+                                                <input type="text" placeholder="搜索学员姓名..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-900 text-sm py-2.5 pl-10 pr-4 rounded-2xl border-2 border-slate-700 outline-none placeholder:text-slate-500 font-black text-white" />
+                                                <Icon name="search" size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            </div>
+                                            <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl border-2 border-slate-700 shadow-inner">
+                                                {["L3", "L4", "A3", "A4", "A5", "A6"].map(c => (
+                                                    <button key={c} onClick={()=>setSelectedRight(p => p.includes(c) ? p.filter(i=>i!==c) : [...p, c])} className={`px-4 py-1 rounded-xl text-xs font-black transition-all border-2 ${selectedRight.includes(c) ? 'bg-white text-slate-950 border-white shadow-md' : 'bg-transparent text-white/30 border-white/10 hover:border-white/30'}`}>{c}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="table-container custom-scrollbar shadow-inner" style={{maxHeight: '520px'}}>
+                                        <table className="w-full text-center border-collapse table-fixed min-w-[1350px]">
+                                            <thead className="sticky top-0 bg-slate-100 z-20 shadow-md text-xs font-black text-slate-950 uppercase border-b-4 border-slate-900 font-black">
+                                                <tr>
+                                                    {[
+                                                        {l: '上课时间', k: 'normTime'}, {l: '班型', k: 'classType'}, {l: '老师', k: 'teacherName'},
+                                                        {l: '分校', k: 'campusName'}, {l: '学员姓名', k: 'studentName'}, {l: '期末成绩', k: 'finalScore'},
+                                                        {l: '升班成绩', k: 'testScore'}, {l: '平均分', k: 'avg'}, {l: '核算详细备注', k: 'remark'}
+                                                    ].map(h => (
+                                                        <th key={h.k} className={`p-4 cursor-pointer hover:bg-slate-300 transition-all ${h.k === 'remark' ? 'w-[450px]' : ''}`} onClick={() => setScoreSort(p => ({key: h.k, direction: p.key === h.k && p.direction === 'desc' ? 'asc' : 'desc'}))}>
+                                                            <div className="flex items-center justify-center gap-2 font-black">{h.l}<Icon name="sort" size={14} className={`${scoreSort.key === h.k ? 'text-indigo-900' : 'opacity-20'} ${scoreSort.key === h.k && scoreSort.direction === 'asc' ? 'rotate-180' : ''}`} /></div>
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="font-black">
+                                                {tableList.map((s, idx) => (
+                                                    <tr key={idx} className={`hover:bg-blue-100 border-b-2 border-slate-300 transition-colors ${s.isPromoted ? 'row-promoted' : s.isInvited ? 'row-invited' : 'bg-slate-50'}`}>
+                                                        <td className="p-3 text-slate-600 font-bold">{s.normTime}</td>
+                                                        <td className="p-3 text-slate-950 font-black">{s.classType}</td>
+                                                        <td className="p-3 text-slate-800 font-black">{s.teacherName}</td>
+                                                        <td className="p-3 text-slate-700 truncate">{s.campusName}</td>
+                                                        <td className="p-3 text-slate-950 text-base font-black tracking-tight">{s.studentName}</td>
+                                                        <td className="p-3 font-mono text-slate-950 text-base font-black tracking-widest">{s.finalScore}</td>
+                                                        <td className={`p-3 font-mono text-base tracking-widest ${s.testScore ? 'text-indigo-900 font-black' : 'text-slate-300 font-bold'}`}>{s.testScore ?? "--"}</td>
+                                                        <td className={`p-3 text-lg ${s.isPromoted ? 'text-emerald-800 font-black scale-110' : 'text-slate-950 font-bold'}`}>{s.avg === -1 ? "--" : s.avg.toFixed(1)}</td>
+                                                        <td className="p-3 text-left pl-8">
+                                                            <div className="flex items-center gap-4">
+                                                                {s.isPromoted ? (
+                                                                    <div className="status-badge bg-emerald-700 text-white shadow-md border-2 border-emerald-900">成功升班</div>
+                                                                ) : s.isInvited ? (
+                                                                    <div className="status-badge bg-indigo-700 text-white shadow-md">入围加测</div>
+                                                                ) : (
+                                                                    <div className="status-badge bg-slate-500 text-white">未入选</div>
+                                                                )}
+                                                                <span className="remark-text tracking-tighter">{s.remark}</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="bg-slate-950 p-4 px-10 text-xs font-black text-slate-400 flex justify-between border-t-4 border-slate-900 font-black">
+                                        <div className="flex gap-8 uppercase tracking-widest leading-none font-black">
+                                            <span>💾 数据已本地同步</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-[3rem] border-8 border-dashed border-slate-300 h-[500px] flex flex-col items-center justify-center text-slate-400 group hover:border-indigo-400 transition-all duration-700 shadow-2xl">
+                                <div className="p-12 bg-slate-100 rounded-[3rem] mb-8 group-hover:scale-110 transition-transform shadow-inner border-2 border-slate-100">
+                                    <Icon name="upload" size={100} className="text-indigo-600 opacity-20 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">系统已就绪</h2>
+                                <p className="text-lg font-black text-slate-600 uppercase tracking-widest">请从顶部导入报表数据，开启自动核算流程</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
