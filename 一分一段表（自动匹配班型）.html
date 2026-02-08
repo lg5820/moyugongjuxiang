@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成绩分析系统 - 旗舰专业版</title>
+    <!-- 依赖库加载 -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- 图标库 -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        /* ============================================================
+           配置区域：视觉配色
+           ============================================================ */
+        :root {
+            /* --- APP UI 主题色 --- */
+            --app-bg: #f4f6f9;
+            --card-bg: #ffffff;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --active-tab: #2980b9;
+            --shadow-soft: 0 10px 40px rgba(0,0,0,0.06);
+            --radius-main: 16px;
+
+            /* --- 报表生成配色 --- */
+            --header-bg: #ffffff;      
+            --header-text: #000000;    
+            --stat-green:    #C6EFCE;
+            --border-dark:   #000000;
+            
+            /* 分数段配色 */
+            --color-90:  #00B050;
+            --color-80:  #92D050;
+            --color-60:  #00B0F0;
+            --color-50:  #FFF2CC;
+            --color-low: #FEC200;
+        }
+
+        /* 基础布局 */
+        * { box-sizing: border-box; outline: none; }
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background-color: var(--app-bg); padding: 40px 20px; color: #2c3e50; margin: 0; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* 头部 */
+        .app-header { text-align: center; margin-bottom: 30px; }
+        .app-header h2 { font-size: 28px; font-weight: 800; margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .app-subtitle { color: #7f8c8d; margin-top: 5px; font-size: 14px; }
+
+        /* --- 导航核心 --- */
+        .nav-container { margin-bottom: 25px; }
+        
+        .level-1-tabs { 
+            display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; 
+            padding-bottom: 10px; border-bottom: 2px solid #e0e0e0;
+        }
+        .tab-l1 { 
+            padding: 10px 20px; font-size: 16px; font-weight: 700; border: none; background: transparent; 
+            color: #95a5a6; cursor: pointer; position: relative; transition: all 0.3s; display: flex; align-items: center; gap: 8px;
+        }
+        .tab-l1:hover { color: var(--accent-color); }
+        .tab-l1.active { color: var(--primary-color); }
+        .tab-l1.active::after { 
+            content: ''; position: absolute; bottom: -12px; left: 0; width: 100%; height: 3px; 
+            background: var(--accent-color); border-radius: 3px 3px 0 0;
+        }
+
+        .level-2-container { 
+            background: white; padding: 15px 20px; border-radius: 12px; 
+            box-shadow: var(--shadow-soft); display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+            min-height: 60px;
+        }
+        .node-label { font-size: 13px; font-weight: 700; color: #b0b8c1; margin-right: 10px; }
+        .tab-l2 { 
+            padding: 6px 16px; border-radius: 20px; border: 1px solid #e0e0e0; background: #fff; 
+            color: #555; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tab-l2:hover { border-color: var(--accent-color); color: var(--accent-color); }
+        .tab-l2.active { background: var(--accent-color); color: white; border-color: var(--accent-color); box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3); }
+
+        /* 控制台 */
+        .dashboard { background: var(--card-bg); border-radius: var(--radius-main); box-shadow: var(--shadow-soft); padding: 25px; margin-bottom: 30px; }
+        
+        .controls-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
+        
+        /* 操作网格 */
+        .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+        .group-label { font-size: 12px; font-weight: 700; color: #b0b8c1; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: block; }
+
+        /* 输入组 */
+        .input-wrapper { display: flex; gap: 10px; align-items: center; }
+        .input-group { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; background: #f8f9fa; padding: 8px 12px; border-radius: 8px; border: 1px solid #e9ecef; }
+        .input-group input { width: 40px; border: none; background: transparent; text-align: center; font-weight: 700; color: var(--primary-color); }
+        
+        /* 按钮 */
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: var(--accent-color); color: white; }
+        .btn-danger { background: #fff0f0; color: #e74c3c; border: 1px solid #fadbd8; }
+        .btn-apply { background: var(--primary-color); color: white; padding: 8px 12px; border-radius: 6px; border:none; cursor: pointer;}
+        .btn-secondary-light { background: #f1f3f5; color: #555; border: 1px solid #e0e0e0; }
+        .btn-secondary-light:hover { background: #e9ecef; color: var(--accent-color); border-color: var(--accent-color); }
+        
+        /* 功能按钮 */
+        .btn-download { background: #27ae60; color: white; width: 100%; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.2); }
+        .btn-download:hover { background: #219150; }
+        .btn-secondary { background: #ecf0f1; color: var(--primary-color); width: 100%; }
+        .btn-secondary:hover { background: #dfe6e9; }
+        .btn-chart { background: #2c3e50; color: white; width: 100%; }
+
+        /* 结果展示区 */
+        #result-container { animation: fadeIn 0.5s ease-out; }
+        .canvas-card { background: white; padding: 30px; border-radius: var(--radius-main); box-shadow: var(--shadow-soft); margin-bottom: 30px; overflow-x: auto; }
+        
+        /* --- 报表样式 --- */
+        .main-table { width: 100%; min-width: 800px; border-collapse: collapse; font-size: 13px; color: #000; border: 2px solid var(--border-dark); margin: 0 auto; }
+        .main-table th, .main-table td { border: 1px solid var(--border-dark); padding: 7px 4px; text-align: center; }
+        
+        .row-title { background-color: var(--header-bg); color: var(--header-text); font-size: 18px; font-weight: bold; height: 55px; border-bottom: 2px solid #000; }
+        
+        .cell-static-green { background-color: var(--stat-green); font-weight: bold; }
+        .row-col-header { background-color: #ffffff; font-weight: bold; } 
+
+        /* 动态配色 */
+        .bg-90  { background-color: var(--color-90) !important; color: white !important; font-weight: bold; }
+        .bg-80  { background-color: var(--color-80) !important; font-weight: bold; }
+        .bg-60  { background-color: var(--color-60) !important; font-weight: bold; }
+        .bg-50  { background-color: var(--color-50) !important; font-weight: bold; }
+        .bg-low { background-color: var(--color-low) !important; font-weight: bold; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .hidden { display: none !important; }
+        .empty-state { text-align: center; padding: 80px 20px; color: #95a5a6; border: 2px dashed #e0e0e0; border-radius: var(--radius-main); margin-top: 20px; }
+        .empty-state i { font-size: 56px; margin-bottom: 20px; display: block; color: #bdc3c7; }
+
+        /* 模态框 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
+        .modal-content h3 { margin-top: 0; color: var(--primary-color); font-size: 18px; margin-bottom: 10px; text-align: center; }
+        .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        .guide-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 10px; }
+        .guide-table th, .guide-table td { border: 1px solid #ddd; padding: 4px; text-align: center; background: #f9f9f9; }
+        .guide-table th { background: #eee; font-weight: bold; }
+        .highlight-col { background: #fff3cd !important; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="app-header">
+        <h2><i class="ph ph-chart-polar" style="color:var(--accent-color)"></i> 成绩分析系统 <span style="font-size: 13px; background:#e0f2fe; color:#0284c7; padding:2px 6px; border-radius:4px;">V5.0（郭哥救我QAQ）</span></h2>
+    </header>
+
+    <div class="dashboard">
+        <!-- 顶部操作栏：数据源与阈值 -->
+        <div class="controls-row">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden" />
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    <i class="ph ph-upload-simple"></i> 导入数据
+                </button>
+                <button class="btn btn-secondary-light" onclick="downloadTemplate()">
+                    <i class="ph ph-download-simple"></i> 下载模板
+                </button>
+                <button class="btn btn-secondary-light" onclick="showGuide()">
+                    <i class="ph ph-question"></i> 使用示例
+                </button>
+                <button class="btn btn-danger" style="width: auto;" onclick="confirmClearData()">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </div>
+
+            <div class="input-wrapper hidden" id="thresholdPanel">
+                <div class="input-group"><span style="color:var(--color-80)">优秀</span><input type="number" id="excThreshold" value="85"></div>
+                <div class="input-group"><span style="color:var(--color-60)">及格</span><input type="number" id="passThreshold" value="60"></div>
+                <button class="btn-apply" onclick="applySettings()"><i class="ph ph-check"></i></button>
+            </div>
+        </div>
+
+        <!-- 底部操作栏：功能网格 -->
+        <div class="action-grid hidden" id="actionPanel">
+            <!-- 1. 视图切换 -->
+            <div>
+                <span class="group-label">1. 视图预览</span>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="switchViewMode(false)">
+                        <i class="ph ph-eye"></i> 预览完整版
+                    </button>
+                    <button class="btn btn-secondary" onclick="switchViewMode(true)">
+                        <i class="ph ph-eye-slash"></i> 预览隐藏版
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 图片导出 -->
+            <div>
+                <span class="group-label">2. 图片导出</span>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-download" style="background:var(--accent-color);" onclick="renderAndExport(false)">
+                        <i class="ph ph-image"></i> 完整版图片
+                    </button>
+                    <button class="btn btn-download" style="background:#8e44ad;" onclick="renderAndExport(true)">
+                        <i class="ph ph-image-square"></i> 隐藏版图片
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. 数据导出 -->
+            <div>
+                <span class="group-label">3. 数据导出</span>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-download" onclick="exportToExcel()">
+                        <i class="ph ph-file-xls"></i> 导出Excel
+                    </button>
+                    <button class="btn btn-chart" onclick="exportChartImg()">
+                        <i class="ph ph-chart-bar"></i> 导出直方图
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导航区域 -->
+    <div id="navContainer" class="nav-container hidden">
+        <!-- 一级：考试场次 -->
+        <div id="level1Tabs" class="level-1-tabs"></div>
+        <!-- 二级：班型 -->
+        <div id="level2Container" class="level-2-container hidden">
+            <span class="node-label"><i class="ph ph-git-branch"></i> 班型选择:</span>
+            <div id="level2Tabs" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+    </div>
+
+    <!-- 结果展示 -->
+    <div id="result-container" class="hidden">
+        <div class="canvas-card" id="tableCard"><div id="table-capture-area"></div></div>
+        <div class="canvas-card" id="chartCard">
+            <div style="max-width: 900px; margin: 0 auto;"><canvas id="scoreChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="emptyState" class="empty-state">
+        <i class="ph ph-files"></i>
+        <h3>开始分析</h3>
+        <p>请点击左上角“导入数据”或“下载模板”查看格式</p>
+    </div>
+</div>
+
+<!-- 模态框 -->
+<div id="customModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h3 id="modalTitle">提示</h3>
+        <div id="modalMessage" style="color: #666; font-size: 14px; line-height: 1.6;">内容</div>
+        <div class="modal-actions">
+            <button class="btn" style="background:#f1f3f5; color:#555;" id="modalCancelBtn" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" id="modalConfirmBtn">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CONFIG = {
+        getRangeClass: (score) => {
+            const s = Number(score);
+            if (s >= 90) return "bg-90";
+            if (s >= 80) return "bg-80";
+            if (s >= 60) return "bg-60";
+            if (s >= 50) return "bg-50";
+            return "bg-low";
+        },
+        scoreKeywords: ["分数", "成绩", "score", "总分"],
+        classKeywords: ["班型", "班级", "class", "type"],
+        chartColors: ['#FEC200', '#FF9F40', '#FFCE56', '#4BC0C0', '#36A2EB', '#9966FF', '#00B050']
+    };
+
+    let examGroups = {}; 
+    let examNames = [];
+    let currentExamName = "";
+    let currentClassIdx = 0;
+    
+    let chartInstance = null;
+    let currentExc = 85;
+    let currentPass = 60;
+    let isHiddenMode = false;
+
+    // --- 模板下载 ---
+    function downloadTemplate() {
+        const wb = XLSX.utils.book_new();
+        
+        // 示例 1: 单场考试分班
+        const data1 = [
+            ["年度", "学期", "年级", "班型", "测试类型", "分数"],
+            ["2025", "春季", "3年级", "A3班", "期中", 98],
+            ["2025", "春季", "3年级", "A3班", "期中", 85],
+            ["2025", "春季", "3年级", "A7班", "期中", 76],
+            ["2025", "春季", "3年级", "A7班", "期中", 92],
+            ["2025", "春季", "3年级", "A3班", "期中", 60]
+        ];
+        const ws1 = XLSX.utils.aoa_to_sheet(data1);
+        XLSX.utils.book_append_sheet(wb, ws1, "标准模板");
+
+        // 示例 2: 多场考试批量
+        const data2 = [
+            ["", "", "", "", "", "第1场", "", "", "", "", "", "第2场"],
+            ["年度", "学期", "年级", "班型", "测试", "分数", "", "年度", "学期", "年级", "班型", "测试", "分数"],
+            ["2025", "春季", "3年级", "A3", "一测", 90, "", "2025", "春季", "3年级", "A3", "二测", 88],
+            ["2025", "春季", "3年级", "A3", "一测", 85, "", "2025", "春季", "3年级", "A3", "二测", 92],
+            ["2025", "春季", "3年级", "A7", "一测", 70, "", "2025", "春季", "3年级", "A7", "二测", 75],
+        ];
+        const ws2 = XLSX.utils.aoa_to_sheet(data2);
+        XLSX.utils.book_append_sheet(wb, ws2, "多场考试模板");
+
+        XLSX.writeFile(wb, "成绩分析_标准模板.xlsx");
+    }
+
+    // --- 使用说明 ---
+    function showGuide() {
+        const msg = `
+            <div style="font-size:13px;">
+                <p><strong>📊 数据格式规范：</strong></p>
+                <p>1. 系统会自动扫描第6行（或其他含“分数”字样的行）作为表头。</p>
+                <p>2. 必须包含 <strong>“分数”</strong> 列。</p>
+                <p>3. 若要自动分班分析，请在“分数”列左侧添加 <strong>“班型”</strong> 列。</p>
+                
+                <p style="margin-top:10px;"><strong>📂 Excel 结构示例：</strong></p>
+                <table class="guide-table">
+                    <tr><th>A</th><th>B</th><th>C</th><th>D (班型)</th><th class="highlight-col">E (分数)</th></tr>
+                    <tr><td>2025</td><td>春季</td><td>3年级</td><td>A3班</td><td class="highlight-col">98</td></tr>
+                    <tr><td>2025</td><td>春季</td><td>3年级</td><td>A7班</td><td class="highlight-col">85</td></tr>
+                </table>
+                <p style="font-size:12px; color:#999; margin-top:5px;">* 支持多列并排，系统会自动识别多场考试。</p>
+            </div>
+        `;
+        showModal("新手使用指南", "", "info", null);
+        document.getElementById('modalMessage').innerHTML = msg;
+    }
+
+    // --- 解析核心 ---
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type: 'array'});
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
+                
+                parseBatchExams(json);
+                
+                if (examNames.length === 0) throw "未识别到有效数据";
+                
+                initNav();
+                
+                document.getElementById('thresholdPanel').classList.remove('hidden');
+                document.getElementById('actionPanel').classList.remove('hidden');
+                document.getElementById('navContainer').classList.remove('hidden');
+                document.getElementById('result-container').classList.remove('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+            } catch (err) { showModal("读取失败", err); }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function parseBatchExams(json) {
+        examGroups = {};
+        examNames = [];
+        const headerRowIndex = 5; 
+        const headerRow = json[headerRowIndex];
+        if (!headerRow) return;
+
+        for (let col = 0; col < headerRow.length; col++) {
+            const cellVal = String(headerRow[col] || "").toLowerCase().trim();
+            if (CONFIG.scoreKeywords.some(k => cellVal.includes(k))) {
+                
+                let classTypeCol = -1;
+                if (col > 0) {
+                    const leftHeader = String(headerRow[col-1] || "").toLowerCase().trim();
+                    if (CONFIG.classKeywords.some(k => leftHeader.includes(k))) {
+                        classTypeCol = col - 1;
+                    }
+                }
+
+                let baseTitle = "";
+                for(let r=0; r<5; r++) {
+                    if (json[r] && json[r][col]) baseTitle += String(json[r][col]) + " ";
+                }
+                baseTitle = baseTitle.replace(/分数|根据班型自动填充|测试类型/g, "").replace(/\s+/g, " ").trim();
+                if(!baseTitle) baseTitle = `考试 ${examNames.length + 1}`;
+
+                const rowsData = [];
+                for(let r = headerRowIndex + 1; r < json.length; r++) {
+                    const row = json[r];
+                    if (row) {
+                        const val = row[col];
+                        if (val !== undefined && val !== null && val !== "" && !isNaN(val)) {
+                            const cls = classTypeCol > -1 ? String(row[classTypeCol] || "未分类") : "默认";
+                            rowsData.push({ score: Number(val), classType: cls });
+                        }
+                    }
+                }
+
+                if (rowsData.length > 0) {
+                    const groups = {};
+                    rowsData.forEach(d => {
+                        if (d.classType && d.classType !== "undefined" && !d.classType.includes("自动填充")) {
+                            if(!groups[d.classType]) groups[d.classType] = [];
+                            groups[d.classType].push(d.score);
+                        }
+                    });
+
+                    const classList = Object.keys(groups).sort().map(name => ({
+                        name: name,
+                        scores: groups[name].sort((a,b)=>b-a)
+                    }));
+
+                    if (classList.length > 0) {
+                        examGroups[baseTitle] = classList;
+                        examNames.push(baseTitle);
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 导航逻辑 ---
+    function initNav() {
+        const l1Container = document.getElementById('level1Tabs');
+        l1Container.innerHTML = "";
+        
+        let commonPrefix = "";
+        if (examNames.length > 1) {
+            const s1 = examNames[0], s2 = examNames[examNames.length-1];
+            let i = 0;
+            while(i < s1.length && s1.charAt(i) === s2.charAt(i)) i++;
+            commonPrefix = s1.substring(0, i);
+        }
+
+        examNames.forEach((name, idx) => {
+            const btn = document.createElement('button');
+            btn.className = `tab-l1 ${idx===0 ? 'active' : ''}`;
+            
+            let label = name;
+            if (commonPrefix.length > 4 && label.startsWith(commonPrefix)) {
+                const suffix = label.substring(commonPrefix.length).trim();
+                if (suffix.length > 0) label = suffix;
+            }
+            
+            btn.innerHTML = `<i class="ph ph-folder-notch"></i> ${label}`;
+            btn.title = name;
+            btn.onclick = () => switchExam(name);
+            l1Container.appendChild(btn);
+        });
+
+        switchExam(examNames[0]);
+    }
+
+    function switchExam(name) {
+        currentExamName = name;
+        
+        const l1Btns = document.querySelectorAll('.tab-l1');
+        l1Btns.forEach(btn => {
+            if(btn.title === name) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        const l2Container = document.getElementById('level2Tabs');
+        const l2Wrapper = document.getElementById('level2Container');
+        l2Container.innerHTML = "";
+        
+        const classes = examGroups[name];
+        if (classes && classes.length > 0) {
+            l2Wrapper.classList.remove('hidden');
+            classes.forEach((cls, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `tab-l2 ${idx===0 ? 'active' : ''}`;
+                btn.innerHTML = cls.name === "默认" ? "成绩报表" : cls.name;
+                btn.onclick = () => switchClass(idx);
+                l2Container.appendChild(btn);
+            });
+            switchClass(0);
+        } else {
+            l2Wrapper.classList.add('hidden');
+        }
+    }
+
+    function switchClass(idx) {
+        currentClassIdx = idx;
+        const l2Btns = document.querySelectorAll('.tab-l2');
+        l2Btns.forEach((btn, i) => {
+            if(i === idx) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        refreshDisplay();
+    }
+
+    function applySettings() {
+        currentExc = Number(document.getElementById('excThreshold').value);
+        currentPass = Number(document.getElementById('passThreshold').value);
+        refreshDisplay();
+    }
+
+    function refreshDisplay() {
+        const clsData = examGroups[currentExamName][currentClassIdx];
+        renderTable(clsData, isHiddenMode);
+        renderChart(clsData);
+    }
+
+    function switchViewMode(hidden) {
+        isHiddenMode = hidden;
+        refreshDisplay();
+    }
+
+    // --- 渲染逻辑 ---
+    function renderTable(clsData, hidden) {
+        const scores = clsData.scores;
+        const n = scores.length;
+        const sum = scores.reduce((a,b)=>a+b,0);
+        const avg = (sum/n).toFixed(1);
+        const max = scores[0], min = scores[n-1];
+        const midIdx = Math.floor(n/2);
+        const median = n%2!==0 ? scores[midIdx] : ((scores[midIdx-1]+scores[midIdx])/2).toFixed(1);
+        const stdDev = Math.sqrt(scores.map(x=>Math.pow(x-avg,2)).reduce((a,b)=>a+b)/n).toFixed(1);
+        const excRate = ((scores.filter(s=>s>=currentExc).length/n)*100).toFixed(1)+"%";
+        const passRate = ((scores.filter(s=>s>=currentPass).length/n)*100).toFixed(1)+"%";
+
+        const counts = {};
+        scores.forEach(s => counts[Math.floor(s)] = (counts[Math.floor(s)]||0)+1);
+        
+        const dataArr = [];
+        let cum = 0;
+        for(let s=100; s>=0; s--) {
+            if(counts[s]>0 || s===100 || s===0) {
+                cum += (counts[s]||0);
+                dataArr.push({ s, c:counts[s]||0, cum, pct:((cum/n)*100).toFixed(1)+"%" });
+            }
+        }
+
+        const totalCols = 15; 
+        const rowsCount = Math.ceil(dataArr.length / 3);
+        
+        let html = `<table class="main-table">`;
+        const titleText = hidden ? `${currentExamName} (${clsData.name})` : `${currentExamName} (${clsData.name === "默认" ? "" : clsData.name}) 总人数: ${n}人`;
+        html += `<tr class="row-title"><th colspan="${totalCols}">${titleText}</th></tr>`;
+
+        // 统计行
+        html += `
+            <tr>
+                <td colspan="5" class="${CONFIG.getRangeClass(max)}">最高分: ${max}</td>
+                <td colspan="5" class="${CONFIG.getRangeClass(min)}">最低分: ${min}</td>
+                <td colspan="5" class="${CONFIG.getRangeClass(avg)}">平均分: ${avg}</td>
+            </tr>
+            <tr>
+                <td colspan="7" class="${CONFIG.getRangeClass(median)}">中位线: ${median}</td>
+                <td colspan="8" class="cell-static-green">标准差: ${stdDev}</td>
+            </tr>
+            <tr>
+                <td colspan="7" class="${CONFIG.getRangeClass(currentExc)}">优秀率 (≥${currentExc}): ${excRate}</td>
+                <td colspan="8" class="${CONFIG.getRangeClass(currentPass)}">及格率 (≥${currentPass}): ${passRate}</td>
+            </tr>
+            <tr class="row-col-header">
+        `;
+        
+        for(let i=0; i<3; i++) html += hidden ? `<td colspan="2">分数</td><td colspan="3">排名%</td>` : `<td>分数</td><td>人数</td><td>累计</td><td>名次</td><td>排名%</td>`;
+        html += `</tr>`;
+
+        for(let i=0; i<rowsCount; i++) {
+            html += `<tr>`;
+            for(let j=0; j<3; j++) {
+                const item = dataArr[i + j*rowsCount];
+                if(item) {
+                    const cls = CONFIG.getRangeClass(item.s);
+                    if(hidden) {
+                        html += `<td colspan="2" class="${cls}">${item.s}</td><td colspan="3" class="${cls}">${item.pct}</td>`;
+                    } else {
+                        html += `<td class="${cls}">${item.s}</td><td class="${cls}">${item.c}</td><td class="${cls}">${item.cum}</td><td class="${cls}">${item.cum}</td><td class="${cls}">${item.pct}</td>`;
+                    }
+                } else { html += `<td colspan="5"></td>`; }
+            }
+            html += `</tr>`;
+        }
+        document.getElementById('table-capture-area').innerHTML = html + `</table>`;
+    }
+
+    function renderChart(clsData) {
+        const scores = clsData.scores;
+        const bins = ["0-59", "60-69", "70-79", "80-84", "85-89", "90-95", "96-100"];
+        const data = [0,0,0,0,0,0,0];
+        scores.forEach(s => {
+            if(s<60) data[0]++; else if(s<70) data[1]++; else if(s<80) data[2]++;
+            else if(s<85) data[3]++; else if(s<90) data[4]++; else if(s<96) data[5]++; else data[6]++;
+        });
+
+        if(chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(document.getElementById('scoreChart'), {
+            type: 'bar', plugins: [ChartDataLabels],
+            data: { labels: bins, datasets: [{ data, backgroundColor: CONFIG.chartColors }] },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false }, datalabels: { anchor:'end', align:'top', formatter:(v)=>(v/scores.length*100).toFixed(1)+'%', font:{weight:'bold'} } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // --- 导出逻辑 ---
+    function renderAndExport(forceHidden) {
+        const originalMode = isHiddenMode;
+        if (typeof forceHidden !== 'undefined') {
+            const clsData = examGroups[currentExamName][currentClassIdx];
+            renderTable(clsData, forceHidden);
+        }
+
+        setTimeout(() => {
+            const area = document.getElementById('table-capture-area');
+            if (!area) return;
+            html2canvas(area, {scale: 2, backgroundColor:"#fff"}).then(canvas => {
+                const link = document.createElement('a');
+                const clsData = examGroups[currentExamName][currentClassIdx];
+                const suffix = (typeof forceHidden !== 'undefined' ? forceHidden : isHiddenMode) ? '隐藏版' : '完整版';
+                link.download = `${currentExamName}_${clsData.name}_${suffix}.png`;
+                link.href = canvas.toDataURL(); link.click();
+                
+                if (typeof forceHidden !== 'undefined') {
+                    const clsData = examGroups[currentExamName][currentClassIdx];
+                    renderTable(clsData, originalMode);
+                }
+            });
+        }, 100);
+    }
+
+    function exportToExcel() {
+        const clsData = examGroups[currentExamName][currentClassIdx];
+        const scores = clsData.scores;
+        const wb = XLSX.utils.book_new();
+        const wsData = [["分数", "人数", "累计", "排名%"]];
+        
+        const counts = {}; scores.forEach(s=>counts[Math.floor(s)]=(counts[Math.floor(s)]||0)+1);
+        let cum = 0;
+        for(let s=100; s>=0; s--) {
+            cum += (counts[s]||0);
+            wsData.push([s, counts[s]||0, cum, ((cum/scores.length)*100).toFixed(1)+"%"]);
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsData), "一分一段表");
+        XLSX.writeFile(wb, `${currentExamName}_${clsData.name}.xlsx`);
+    }
+
+    function exportChartImg() {
+        const area = document.getElementById('chartCard');
+        if (!area) return;
+        html2canvas(area, {scale: 2}).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `统计图.png`;
+            link.href = canvas.toDataURL(); link.click();
+        });
+    }
+
+    // 通用
+    function confirmClearData() {
+        showModal("确认操作", "确定清空数据？", "confirm", () => { location.reload(); });
+    }
+    function showModal(t, m, type, cb) {
+        const modal = document.getElementById('customModal');
+        document.getElementById('modalTitle').innerText = t;
+        // 支持 HTML 内容显示
+        document.getElementById('modalMessage').innerHTML = m;
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const cancelBtn = document.getElementById('modalCancelBtn');
+        
+        const newConfirm = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+        
+        if (type === 'confirm') {
+            cancelBtn.classList.remove('hidden');
+            newConfirm.onclick = () => { if(cb) cb(); closeModal(); };
+        } else {
+            cancelBtn.classList.add('hidden');
+            newConfirm.onclick = closeModal;
+        }
+        modal.classList.remove('hidden');
+    }
+    function closeModal() { document.getElementById('customModal').classList.add('hidden'); }
+</script>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>火光教师占档表整理工具-学科出品 v11.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <style>
+        :root { --primary: #2563eb; --success: #10b981; --bg: #f8fafc; --gray-d: #8e9196; --gray-l: #e5e7eb; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+        body { background: var(--bg); padding: 20px; color: #1e293b; }
+        .container { max-width: 1600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
+        .upload-card { background: #fafafa; border: 2px dashed #cbd5e1; padding: 30px; text-align: center; border-radius: 12px; transition: 0.2s; }
+        .upload-card:hover { border-color: var(--primary); background: #f1f5ff; }
+        .controls { margin-top: 20px; display: flex; justify-content: center; gap: 15px; align-items: center; }
+        button { padding: 12px 28px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; color: #fff; display: flex; align-items: center; gap: 8px; }
+        .btn-p { background: var(--primary); }
+        .btn-s { background: var(--success); display: none; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .section-title { margin: 30px 0 15px; padding-left: 12px; border-left: 4px solid var(--primary); font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        
+        #effArea { display: flex; overflow-x: auto; gap: 0; border: 1px solid #cbd5e1; background: #cbd5e1; align-items: flex-start; }
+        .eff-col { background: #fff; flex: 1; min-width: 180px; display: flex; flex-direction: column; border-right: 1px solid #cbd5e1; }
+        .eff-col:last-child { border-right: none; }
+        .eff-hd-main { font-weight: bold; font-size: 15px; padding: 10px; border-bottom: 1px solid #333; text-align: center; }
+        .eff-hd-sub { display: flex; font-weight: bold; border-bottom: 1px solid #333; background: #f8fafc; }
+        .eff-hd-sub div { flex: 1; padding: 6px; border-right: 1px solid #cbd5e1; text-align: center; }
+        .eff-hd-sub div:last-child { border-right: none; }
+        .eff-row { display: flex; border-bottom: 1px solid #cbd5e1; }
+        .eff-row div { flex: 1; padding: 8px 4px; border-right: 1px solid #cbd5e1; text-align: center; display: flex; align-items: center; justify-content: center; min-height: 40px; }
+        .eff-row div:last-child { border-right: none; }
+        .eff-ft { font-weight: bold; display: flex; border-bottom: 1px solid #cbd5e1; }
+        .eff-ft div { flex: 1; padding: 10px 4px; border-right: 1px solid #cbd5e1; text-align: center; }
+        
+        .table-container { overflow-x: auto; margin-top: 10px; border: 1px solid #cbd5e1; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px 6px; vertical-align: middle; line-height: 1.6; }
+        .conf { background-color: #fee2e2 !important; color: #dc2626; font-weight: bold; }
+        .hd-gray { background: #A6A6A6 !important; color: #fff; font-weight: bold; }
+        .cell-gray { background: #D9D9D9 !important; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 style="font-size: 24px;">🔥 火光教师占档表整理工具-学科出品 <small style="font-size: 14px; color: #64748b;">v11.0 Pro</small></h2>
+            <p style="color: #94a3b8; margin-top: 5px;">结构优化版 · 核心参数一键配置 · 稳定高效解析</p>
+        </div>
+
+        <div class="upload-card">
+            <input type="file" id="fIn" accept=".xlsx, .xls, .csv" />
+            <div class="controls">
+                <button class="btn-p" onclick="doParse()">🚀 解析并预览</button>
+                <button id="btnDl" class="btn-s" onclick="doCombinedExport()">📥 导出全量 Excel</button>
+            </div>
+        </div>
+
+        <div class="section-title">📊 教师效能分布预览</div>
+        <div id="effArea"></div>
+
+        <div class="section-title">📅 教师占档明细预览</div>
+        <div class="table-container" id="previewArea"></div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================
+         * 核心配置项 (如需修改逻辑，请优先在此处调整)
+         * ============================================================
+         */
+        const GLOBAL_CONFIG = {
+            // 效能计算规则
+            efficiency: {
+                threshold: 4,      // 达标班级数阈值：大于等于此数算 1 份效能，否则算 0.5 份
+                fullScore: 1.0,    // 达标后的效能值
+                partialScore: 0.5  // 未达标的效能值
+            },
+
+            // 导出文件默认设置
+            export: {
+                fontName: "微软雅黑",
+                fileNamePrefix: "火光教师整理汇总"
+            },
+
+            // 校区简称映射 (用于占档表内容脱敏/简化显示)
+            campMap: { 
+                "红旗河沟":"理想", "理想":"理想", "U城":"龙湖", "龙湖":"龙湖", 
+                "熙街":"熙街", "商会":"商会", "观音桥":"观音桥", "华新街":"华新街", 
+                "南坪":"南坪", "汽博":"汽博", "汉国":"汉国", "XY":"鑫源", 
+                "鑫源":"鑫源", "QT":"庆泰", "庆泰":"庆泰", "艾佳":"艾佳", 
+                "南桥寺":"南桥寺", "大石坝":"大石坝", "茶园":"茶园" 
+            },
+
+            // 占档表主题配色 (根据期数/星期显示不同颜色)
+            slotThemes: [
+                { keys: ["零期","周四","周五"], head: "FF7C80", body: "FFCCCC" },
+                { keys: ["一期","周六"], head: "FFD966", body: "FFF2CC" },
+                { keys: ["二期","周日"], head: "8EA9DB", body: "DDEBF7" },
+                { keys: ["三期"], head: "A9D08E", body: "E2EFDA" }
+            ],
+
+            // 效能图年级配色方案 (循环应用)
+            effGradeColors: [
+                { head: "FFB2B2", body: "FFEBEE" }, // 1年级 - 浅红
+                { head: "FFE082", body: "FFF9C4" }, // 2年级 - 浅黄
+                { head: "90CAF9", body: "E3F2FD" }, // 3年级 - 浅蓝
+                { head: "A5D6A7", body: "E8F5E9" }, // 4年级 - 浅绿
+                { head: "CE93D8", body: "F3E5F5" }, // 5年级 - 浅紫
+                { head: "FFCC80", body: "FFF3E0" }, // 6年级 - 浅橙
+                { head: "BDBDBD", body: "F5F5F5" }  // 其他
+            ],
+
+            // 灰色基调 (用于表侧边栏)
+            grayBase: { dark: "A6A6A6", light: "D9D9D9" }
+        };
+
+        // 全局变量
+        let tableData = [], timeSlots = [], gradeEfficiency = {};
+
+        /**
+         * ============================================================
+         * 基础工具函数
+         * ============================================================
+         */
+        const getValue = (row, targetKey) => {
+            const actualKey = Object.keys(row).find(k => k.replace(/\s+/g, '').includes(targetKey));
+            return actualKey ? String(row[actualKey]).trim() : "";
+        };
+
+        const getShortRoom = (str) => (str.replace(/教室|分校|校区/g, "").match(/[A-Z]*\d+/i) || [str])[0];
+        
+        const getCampName = (str) => {
+            const entry = Object.entries(GLOBAL_CONFIG.campMap).find(([key]) => str.includes(key));
+            return entry ? entry[1] : str;
+        };
+
+        const formatTimePeriod = (timeStr) => {
+            const hour = parseInt((timeStr.match(/\d{1,2}/) || [0])[0]);
+            if (hour === 0) return "";
+            if (hour < 11) return "早";
+            if (hour < 14) return "中";
+            if (hour < 18) return "下";
+            return "晚";
+        };
+
+        const getSlotStyle = (slotName) => {
+            return GLOBAL_CONFIG.slotThemes.find(t => t.keys.some(k => slotName.includes(k))) || { head: "F2F2F2", body: "FFFFFF" };
+        };
+
+        const getSortWeight = (slotName) => {
+            const weekWeight = {周一:10,周二:20,周三:30,周四:40,周五:50,周六:60,周日:70,零期:100,一期:110,二期:120,三期:130};
+            const timeWeight = {早:1,中:2,下:3,晚:4};
+            const wKey = Object.keys(weekWeight).find(k => slotName.includes(k)) || "";
+            return (weekWeight[wKey] || 0) + (timeWeight[slotName.slice(-1)] || 0);
+        };
+
+        /**
+         * ============================================================
+         * 核心解析与渲染逻辑
+         * ============================================================
+         */
+        function doParse() {
+            const file = document.getElementById('fIn').files[0];
+            if (!file) return alert("请先上传 Excel 文件");
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames.find(n => n.includes("导入")) || workbook.SheetNames[0]];
+                    const rawData = XLSX.utils.sheet_to_json(sheet);
+                    
+                    const pivot = {}, gradeMap = {}, uniqueSlots = new Set();
+                    const teaGradeSet = {}, gradeTeaCount = {}; 
+
+                    rawData.forEach(row => {
+                        const tea = getValue(row, "讲师") || "未知";
+                        const grade = getValue(row, "年级") || "未分类";
+                        const type = (getValue(row, "时间类型") || getValue(row, "上课时间类型")).replace("星期", "周");
+                        const time = formatTimePeriod(getValue(row, "下课时间") || getValue(row, "时间段"));
+                        
+                        if (type.length < 2) return;
+                        const slotKey = type + time;
+                        uniqueSlots.add(slotKey);
+
+                        // 汇总占档信息
+                        const classInfo = `${getValue(row, "班型")}-${getCampName(getValue(row, "校区"))}-${getShortRoom(getValue(row, "教室"))}-${getValue(row, "报名人数") || 0}`;
+                        pivot[tea] = pivot[tea] || {};
+                        (pivot[tea][slotKey] = pivot[tea][slotKey] || []).push({ text: classInfo, num: parseInt(getValue(row, "报名人数") || 0) });
+                        if (grade) (gradeMap[tea] = gradeMap[tea] || new Set()).add(grade);
+
+                        // 汇总效能统计
+                        if (!teaGradeSet[tea]) teaGradeSet[tea] = new Set();
+                        teaGradeSet[tea].add(grade);
+                        if (!gradeTeaCount[grade]) gradeTeaCount[grade] = {};
+                        gradeTeaCount[grade][tea] = (gradeTeaCount[grade][tea] || 0) + 1;
+                    });
+
+                    // 排序时间列表
+                    timeSlots = [...uniqueSlots].sort((a, b) => getSortWeight(a) - getSortWeight(b));
+                    
+                    // 构造占档表展示数据
+                    tableData = Object.keys(pivot).sort().map(tea => {
+                        const r = { "讲师": tea, "年级": [...(gradeMap[tea] || [])].join("/"), "总班级数": 0, "报名总人数": 0 };
+                        timeSlots.forEach(s => {
+                            const list = pivot[tea][s] || [];
+                            r[s] = list.map(item => item.text).join("\n");
+                            r[`_conf_${s}`] = list.length > 1; // 标记冲突
+                            r["总班级数"] += list.length;
+                            r["报名总人数"] += list.reduce((sum, item) => sum + item.num, 0);
+                        });
+                        return r;
+                    });
+
+                    // 构造效能表展示数据
+                    gradeEfficiency = {};
+                    Object.keys(gradeTeaCount).sort().forEach(g => {
+                        gradeEfficiency[g] = Object.entries(gradeTeaCount[g]).map(([name, count]) => ({
+                            name: teaGradeSet[name].size > 1 ? name + "*" : name,
+                            eff: count >= GLOBAL_CONFIG.efficiency.threshold ? GLOBAL_CONFIG.efficiency.fullScore : GLOBAL_CONFIG.efficiency.partialScore
+                        })).sort((a, b) => b.eff - a.eff);
+                    });
+
+                    renderPreviews();
+                    document.getElementById('btnDl').style.display = "flex";
+                } catch (err) { console.error(err); alert("数据解析失败，请检查文件。"); }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function renderPreviews() {
+            // 渲染效能预览图
+            const effArea = document.getElementById('effArea');
+            let effHtml = '';
+            Object.keys(gradeEfficiency).forEach((grade, idx) => {
+                const color = GLOBAL_CONFIG.effGradeColors[idx] || GLOBAL_CONFIG.effGradeColors[GLOBAL_CONFIG.effGradeColors.length-1];
+                let total = 0;
+                let rows = gradeEfficiency[grade].map(item => {
+                    total += item.eff;
+                    return `<div class="eff-row"><div style="background:#${color.body}">${item.name}</div><div style="background:#${color.body}">${item.eff}</div></div>`;
+                }).join('');
+                effHtml += `
+                    <div class="eff-col">
+                        <div class="eff-hd-main" style="background:#${color.head}">${grade}</div>
+                        <div class="eff-hd-sub"><div>讲师</div><div>效能</div></div>
+                        <div class="eff-body">${rows}</div>
+                        <div class="eff-ft" style="background:#${color.head}"><div>总效能</div><div>${total}</div></div>
+                    </div>`;
+            });
+            effArea.innerHTML = effHtml;
+
+            // 渲染占档明细预览图
+            const previewArea = document.getElementById('previewArea');
+            let h = `<table><thead><tr><th class="hd-gray">讲师</th><th class="hd-gray">年级</th>`;
+            timeSlots.forEach(s => h += `<th style="background:#${getSlotStyle(s).head}">${s}</th>`);
+            h += `<th class="hd-gray">总班级数</th><th class="hd-gray">报名总人数</th></tr></thead><tbody>`;
+            tableData.forEach(r => {
+                h += `<tr><td class="cell-gray">${r["讲师"]}</td><td class="cell-gray">${r["年级"]}</td>`;
+                timeSlots.forEach(s => h += `<td class="${r[`_conf_${s}`]?'conf':''}" style="background:#${getSlotStyle(s).body}">${r[s]||""}</td>`);
+                h += `<td class="cell-gray">${r["总班级数"]}</td><td class="cell-gray">${r["报名总人数"]}</td></tr>`;
+            });
+            previewArea.innerHTML = h + `</tbody></table>`;
+        }
+
+        /**
+         * ============================================================
+         * Excel 导出逻辑 (双 Sheet 模式)
+         * ============================================================
+         */
+        function doCombinedExport() {
+            if (!tableData.length) return;
+            const wb = XLSX.utils.book_new();
+            const font = GLOBAL_CONFIG.export.fontName;
+            
+            // Sheet 1: 教师占档明细
+            const headers1 = ["讲师", "年级", ...timeSlots, "总班级数", "报名总人数"];
+            const ws1 = XLSX.utils.aoa_to_sheet([headers1, ...tableData.map(r => headers1.map(h => r[h] || ""))]);
+            applyStyleSheet1(ws1, headers1, font);
+            XLSX.utils.book_append_sheet(wb, ws1, "教师占档明细");
+
+            // Sheet 2: 效能分布表 (自适应汇总位置)
+            const grades = Object.keys(gradeEfficiency);
+            const maxRows = Math.max(...grades.map(g => gradeEfficiency[g].length)) + 1;
+            const aoa2 = [ [], [] ];
+            grades.forEach(g => { aoa2[0].push(g, ""); aoa2[1].push("讲师", "效能"); });
+            for (let i = 0; i < maxRows; i++) aoa2.push(new Array(grades.length * 2).fill(""));
+
+            grades.forEach((g, gIdx) => {
+                let currentTotal = 0;
+                gradeEfficiency[g].forEach((item, tIdx) => {
+                    aoa2[tIdx + 2][gIdx * 2] = item.name;
+                    aoa2[tIdx + 2][gIdx * 2 + 1] = item.eff;
+                    currentTotal += item.eff;
+                });
+                const summaryIdx = gradeEfficiency[g].length + 2;
+                aoa2[summaryIdx][gIdx * 2] = "总效能";
+                aoa2[summaryIdx][gIdx * 2 + 1] = currentTotal;
+            });
+
+            const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+            applyStyleSheet2(ws2, grades, font);
+            XLSX.utils.book_append_sheet(wb, ws2, "年级效能分析");
+
+            XLSX.writeFile(wb, `${GLOBAL_CONFIG.export.fileNamePrefix}-${getFmtDate()}.xlsx`);
+        }
+
+        function applyStyleSheet1(ws, hds, font) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const addr = XLSX.utils.encode_cell({r:R, c:C});
+                    if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+                    const cell = ws[addr];
+                    const isHead = R === 0, isSide = C < 2 || C >= hds.length - 2;
+                    const style = getSlotStyle(hds[C] || "");
+                    const bg = isHead ? (isSide ? GLOBAL_CONFIG.grayBase.dark : style.head) : (isSide ? GLOBAL_CONFIG.grayBase.light : style.body);
+                    
+                    cell.s = {
+                        font: { name: font, sz: 10, color: { rgb: (isHead && isSide) ? "FFFFFF" : "000000" }, bold: isHead || isSide },
+                        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+                        fill: { fgColor: { rgb: bg.replace('#', '') } },
+                        border: { top: {style: "thin"}, bottom: {style: "thin"}, left: {style: "thin"}, right: {style: "thin"} }
+                    };
+                }
+            }
+            ws['!cols'] = [{wch:10}, {wch:12}, ...timeSlots.map(()=>({wch:22})), {wch:10}, {wch:10}];
+        }
+
+        function applyStyleSheet2(ws, grades, font) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            ws['!merges'] = grades.map((_, i) => ({ s: { r: 0, c: i * 2 }, e: { r: 0, c: i * 2 + 1 } }));
+            
+            for (let R = range.s.r; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                    const cell = ws[addr];
+                    if (!cell || (cell.v === "" && R > 1)) {
+                        if (cell) cell.s = { border: { top: {style: "none"} } }; 
+                        continue;
+                    }
+                    
+                    const gIdx = Math.floor(C / 2);
+                    const color = GLOBAL_CONFIG.effGradeColors[gIdx] || GLOBAL_CONFIG.effGradeColors[0];
+                    let bg = "FFFFFF", bold = false;
+                    
+                    if (R === 0) { bg = color.head; bold = true; } 
+                    else if (R === 1) { bg = "F2F2F2"; bold = true; } 
+                    else if (cell.v === "总效能" || (C % 2 === 1 && ws[XLSX.utils.encode_cell({r: R, c: C-1})]?.v === "总效能")) {
+                        bg = color.head; bold = true;
+                    } else {
+                        bg = color.body;
+                    }
+
+                    cell.s = {
+                        font: { name: font, sz: 10, bold: bold },
+                        alignment: { vertical: "center", horizontal: "center" },
+                        fill: { fgColor: { rgb: bg.replace('#', '') } },
+                        border: { 
+                            top: {style: "thin", color: {rgb: "000000"}}, bottom: {style: "thin", color: {rgb: "000000"}}, 
+                            left: {style: "thin", color: {rgb: "000000"}}, right: {style: "thin", color: {rgb: "000000"}} 
+                        }
+                    };
+                }
+            }
+            ws['!cols'] = grades.flatMap(() => [{wch: 15}, {wch: 10}]);
+        }
+
+        function getFmtDate() {
+            const d = new Date();
+            return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+        }
+    </script>
+</body>
+</html>

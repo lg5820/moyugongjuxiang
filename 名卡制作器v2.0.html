@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>名卡制作器（v2.0 郭哥救我QAQ）</title>
+
+  <!-- SheetJS：读取 xlsx（在线版需要联网；离线请下载 xlsx.full.min.js 到同目录并改为本地引用） -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      /* ✅ 界面：白金色（固定不随主题变） */
+      --ui-bg:#fbfbfb; --ui-bg2:#f6f3ea; --ui-panel:#fff; --ui-panel2:#fffdf6;
+      --ui-text:#1f2937; --ui-muted:#6b7280; --ui-line:#e5e7eb;
+      --ui-gold:#c8a24a; --ui-shadow:0 10px 26px rgba(17,24,39,.10);
+
+      /* 普通名卡（网格模式） */
+      --card-w:160mm; --card-h:70mm; --card-radius:18px; --card-pad:18mm;
+      --gap:12mm; --cols:1; --scale:.92;
+      --name-size:56px; --slot-size:18px;
+
+      /* ✅ 立牌：A4 竖向（210×297mm） */
+      --a4w:210mm; --a4h:297mm; --tent-scale:.86;
+
+      /* ✅ 立牌字号（可调） */
+      --tent-name-size:72px;
+      --tent-slot-size:20px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+      color:var(--ui-text);
+      background:
+        radial-gradient(1100px 700px at 12% 6%, rgba(200,162,74,.16), transparent 60%),
+        radial-gradient(900px 550px at 85% 12%, rgba(242,213,139,.18), transparent 55%),
+        linear-gradient(180deg,var(--ui-bg),var(--ui-bg2));
+      min-height:100vh;
+    }
+
+    header{padding:18px 18px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    header h1{margin:0;font-size:18px;font-weight:900;letter-spacing:.6px}
+    header .badge{font-size:12px;padding:5px 10px;border:1px solid rgba(200,162,74,.45);border-radius:999px;background:linear-gradient(180deg,#fff,#fffaf0);color:#6b4e12}
+
+    .app{display:grid;grid-template-columns:420px 1fr;gap:14px;padding:14px 18px 18px;align-items:start}
+
+    .panel{background:linear-gradient(180deg,var(--ui-panel),var(--ui-panel2));border:1px solid var(--ui-line);border-radius:16px;box-shadow:var(--ui-shadow);overflow:hidden}
+    .panel .hd{padding:14px 14px 10px;border-bottom:1px solid var(--ui-line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .panel .hd h2{margin:0;font-size:14px;letter-spacing:.3px;font-weight:900}
+    .panel .bd{padding:14px}
+
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    label{display:block;font-size:12px;color:var(--ui-muted);margin:0 0 6px;font-weight:700}
+
+    /* ✅ 下拉框/输入框：高对比，选项清晰 */
+    select,input[type="number"],input[type="text"],input[type="range"]{
+      width:100%;border:1px solid #d1d5db;background:#fff;color:#111827;border-radius:12px;
+      padding:10px 10px;outline:none;box-shadow:0 1px 0 rgba(17,24,39,.04)
+    }
+    select{cursor:pointer}
+    select:focus,input:focus{border-color:rgba(200,162,74,.85);box-shadow:0 0 0 4px rgba(200,162,74,.16)}
+    option{color:#111827;background:#fff}
+    input[type="range"]{padding:10px 8px}
+
+    .btns{display:flex;gap:10px;flex-wrap:wrap}
+    button{
+      border:1px solid #d1d5db;background:linear-gradient(180deg,#fff,#fffaf0);color:#111827;border-radius:12px;
+      padding:10px 12px;cursor:pointer;font-weight:900
+    }
+    button.primary{border-color:rgba(200,162,74,.55);background:linear-gradient(180deg,#fff4d4,#fffaf0)}
+    button.danger{border-color:rgba(239,68,68,.28);background:linear-gradient(180deg,#ffe9e9,#fff)}
+    button:disabled{opacity:.55;cursor:not-allowed}
+
+    .miniBtn{
+      padding:10px 10px;
+      min-width:44px;
+      border-radius:12px;
+      font-weight:1000;
+      line-height:1;
+      user-select:none;
+    }
+    .stepper{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .stepper input[type="number"]{flex:1}
+
+    .drop{border:1.5px dashed rgba(200,162,74,.55);border-radius:14px;padding:14px;background:rgba(255,250,240,.65);display:flex;gap:12px;align-items:center}
+    .drop .icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:#fff;border:1px solid rgba(200,162,74,.35)}
+    .drop .meta{flex:1}
+    .drop .meta b{display:block;font-size:13px;margin-bottom:4px}
+    .drop .meta span{font-size:12px;color:var(--ui-muted)}
+    .hint{margin-top:10px;font-size:12px;color:var(--ui-muted);line-height:1.65}
+
+    .mini-table{margin-top:12px;max-height:240px;overflow:auto;border:1px solid var(--ui-line);border-radius:12px;background:#fff}
+    .mini-table table{width:100%;border-collapse:collapse}
+    .mini-table th,.mini-table td{padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:12px;text-align:left;white-space:nowrap;color:#111827}
+    .mini-table th{position:sticky;top:0;background:#fffaf0}
+
+    .pill{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid rgba(200,162,74,.35);background:linear-gradient(180deg,#fff,#fffaf0);color:#6b4e12;font-weight:800}
+
+    .stageWrap{padding:14px}
+
+    /* 普通名卡预览（A4竖） */
+    .paper{
+      transform:scale(var(--scale));transform-origin:top left;
+      width:210mm;min-height:297mm;padding:12mm;
+      background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:var(--ui-shadow);position:relative;overflow:hidden
+    }
+    .cards{display:grid;grid-template-columns:repeat(var(--cols),var(--card-w));grid-auto-rows:var(--card-h);gap:var(--gap);align-content:start;justify-content:start}
+    .cutline .card{outline:1.5px dashed rgba(200,162,74,.55);outline-offset:4px}
+
+    /* 名卡（通用） */
+    .card{
+      width:var(--card-w);height:var(--card-h);border-radius:var(--card-radius);position:relative;overflow:hidden;
+      box-shadow:0 12px 22px rgba(17,24,39,.10);background:#fff;border:1px solid rgba(17,24,39,.08)
+    }
+    .card .inner{
+      position:absolute;inset:0;padding:var(--card-pad);
+      display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:14px;z-index:2
+    }
+    .name{font-size:var(--name-size);font-weight:900;letter-spacing:2px;line-height:1.05;color:#0f172a;text-shadow:0 8px 18px rgba(17,24,39,.10)}
+    .slot{
+      font-size:var(--slot-size);font-weight:900;color:#111827;background:rgba(255,255,255,.92);border:1px solid rgba(17,24,39,.08);
+      padding:6px 12px;border-radius:999px;display:inline-flex;gap:8px;align-items:center;box-shadow:0 8px 16px rgba(17,24,39,.08);z-index:3
+    }
+    .slot.small{position:absolute;bottom:10mm;left:10mm;font-size:14px;padding:5px 10px}
+    .slot.tr{position:absolute;top:10mm;right:10mm;left:auto;bottom:auto}
+
+    /* 主题选择 */
+    .tplGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .tpl{border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:10px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;box-shadow:0 6px 14px rgba(17,24,39,.06)}
+    .tpl:hover{transform:translateY(-2px)}
+    .tpl.active{outline:2px solid rgba(200,162,74,.75)}
+    .tpl .thumb{height:64px;border-radius:12px;border:1px solid #eef2f7;position:relative;overflow:hidden;margin-bottom:8px;background:linear-gradient(180deg,#fff,#f6fbff);display:grid;place-items:center;font-size:28px}
+    .tpl .tname{font-size:12px;font-weight:900}
+
+    /* ✅ A4 竖向三折立牌（全填充） */
+    .tentPages{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+    .pageA4{
+      transform:scale(var(--tent-scale));transform-origin:top left;width:var(--a4w);height:var(--a4h);
+      background:#fff;position:relative;overflow:hidden;border:1px solid #e5e7eb;border-radius:16px;box-shadow:var(--ui-shadow)
+    }
+    .triCols{position:absolute;inset:0;display:grid;grid-template-rows:1fr 1fr 1fr}
+    .triCell{position:relative;display:flex;align-items:stretch;justify-content:stretch;padding:0;background:#fff;overflow:hidden}
+    .triCell.blank{background:#fff}
+
+    /* ✅ 关键：名卡铺满每个三等分格子（无留白） */
+    .triCell .card{width:100%;height:100%;border-radius:0;border:none;box-shadow:none}
+    .triCell .name{font-size:var(--tent-name-size)}
+    .triCell .slot{font-size:var(--tent-slot-size)}
+    .rot180{transform:rotate(180deg);width:100%;height:100%}
+
+    /* 折线 */
+    .foldLineH{position:absolute;left:0;right:0;height:0;border-top:2px dashed rgba(200,162,74,.65);pointer-events:none;z-index:5}
+    .foldH1{top:calc(var(--a4h) / 3)}
+    .foldH2{top:calc(var(--a4h) / 3 * 2)}
+
+    .empty{padding:28px;border:1.5px dashed rgba(200,162,74,.55);border-radius:16px;color:var(--ui-muted);background:rgba(255,250,240,.55);line-height:1.8}
+
+    /* ✅ 打印：隐藏所有预览标题栏（避免你截图的那条“实时预览…”） */
+    @media print{
+      body{background:#fff}
+      header,.panel.left{display:none!important}
+      .panel .hd{display:none!important}
+      .panel{border:none!important;box-shadow:none!important;border-radius:0!important}
+
+      .app{grid-template-columns:1fr;padding:0}
+      .stageWrap{padding:0}
+
+      .paper,.pageA4{transform:none!important;box-shadow:none!important;border:none!important;border-radius:0!important}
+      .paper{width:210mm;min-height:297mm;padding:10mm}
+
+      @page{size:A4 portrait;margin:0}
+      .pageA4{width:210mm;height:297mm;page-break-after:always}
+
+      .foldLineH{border-top:1.5px dashed rgba(0,0,0,.35)}
+    }
+
+    @media (max-width:1050px){.app{grid-template-columns:1fr}}
+
+    /* ===== 5 个卡通主题（只影响卡片） ===== */
+    .decor{position:absolute;inset:0;z-index:1;pointer-events:none}
+
+    /* ① 天空彩虹 ☀️🌈 */
+    .t_rainbow{background:linear-gradient(180deg,#fff,#f6fbff)}
+    .t_rainbow .cloud{position:absolute;width:72mm;height:32mm;background:rgba(255,255,255,.95);border-radius:999px;left:-18mm;top:-10mm;filter:drop-shadow(0 10px 18px rgba(17,24,39,.10));border:1px solid rgba(17,24,39,.05)}
+    .t_rainbow .cloud:before,.t_rainbow .cloud:after{content:"";position:absolute;background:inherit;border-radius:999px;border:1px solid rgba(17,24,39,.02)}
+    .t_rainbow .cloud:before{width:30mm;height:30mm;left:10mm;top:-14mm}
+    .t_rainbow .cloud:after{width:38mm;height:38mm;left:28mm;top:-18mm}
+    .t_rainbow .sun{position:absolute;right:10mm;top:14mm;width:22mm;height:22mm;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff7b8 0 45%,#ffd45e 46% 100%);box-shadow:0 12px 22px rgba(17,24,39,.10)}
+    .t_rainbow .sun:before{content:"";position:absolute;inset:-6mm;background:repeating-conic-gradient(from 0deg,rgba(255,204,77,.75) 0 8deg,transparent 8deg 16deg);-webkit-mask:radial-gradient(circle,transparent 0 62%,#000 63%);mask:radial-gradient(circle,transparent 0 62%,#000 63%);opacity:.65}
+    .t_rainbow .rainbow{position:absolute;left:-46mm;bottom:-34mm;width:150mm;height:120mm;border-radius:140mm 140mm 0 0;background:conic-gradient(from 210deg,rgba(255,0,0,.55),rgba(255,154,0,.55),rgba(255,255,0,.55),rgba(0,200,83,.55),rgba(0,145,234,.55),rgba(156,39,176,.55),rgba(255,0,0,.55));-webkit-mask:radial-gradient(circle at 50% 120%,transparent 0 55%,#000 56%);mask:radial-gradient(circle at 50% 120%,transparent 0 55%,#000 56%);opacity:.55;filter:drop-shadow(0 10px 18px rgba(17,24,39,.10))}
+
+    /* ② 太空火箭 🚀⭐ */
+    .t_space{background:linear-gradient(180deg,#fff,#f7f5ff)}
+    .t_space .stars{position:absolute;inset:0;background:radial-gradient(circle at 18% 22%,rgba(121,80,255,.18) 0 3px,transparent 4px),radial-gradient(circle at 30% 70%,rgba(121,80,255,.18) 0 2px,transparent 3px),radial-gradient(circle at 72% 30%,rgba(33,150,243,.18) 0 3px,transparent 4px),radial-gradient(circle at 82% 72%,rgba(33,150,243,.18) 0 2px,transparent 3px);opacity:.9}
+    .t_space .planet{position:absolute;left:-28mm;bottom:-26mm;width:90mm;height:90mm;border-radius:50%;background:radial-gradient(circle at 35% 35%,#d8c9ff 0 45%,#b39cff 46% 100%);box-shadow:0 18px 26px rgba(17,24,39,.10);opacity:.85}
+    .t_space .ring{position:absolute;left:-36mm;bottom:-8mm;width:120mm;height:42mm;border-radius:999px;border:6px solid rgba(121,80,255,.18);transform:rotate(-12deg);opacity:.85}
+    .t_space .rocket{position:absolute;right:8mm;top:10mm;width:26mm;height:26mm;border-radius:10px;background:linear-gradient(180deg,#fff,#f2f2ff);border:1px solid rgba(17,24,39,.08);transform:rotate(18deg);box-shadow:0 10px 18px rgba(17,24,39,.10)}
+    .t_space .rocket:before{content:"";position:absolute;left:7mm;top:-7mm;width:12mm;height:12mm;border-radius:999px;background:radial-gradient(circle at 40% 40%,#ffb3c1 0 55%,#ff6f91 56% 100%)}
+    .t_space .rocket:after{content:"";position:absolute;left:-10mm;top:10mm;width:20mm;height:6mm;border-radius:999px;background:linear-gradient(90deg,rgba(255,209,102,0),rgba(255,209,102,.55),rgba(255,209,102,0));filter:blur(.3mm);opacity:.85}
+
+    /* ③ 海底小鱼 🐟🫧 */
+    .t_ocean{background:linear-gradient(180deg,#fff,#f2fbff)}
+    .t_ocean .waves{position:absolute;left:-40mm;bottom:-40mm;width:180mm;height:140mm;border-radius:140mm 140mm 0 0;background:conic-gradient(from 210deg,rgba(0,145,234,.30),rgba(0,200,255,.22),rgba(0,145,234,.30));-webkit-mask:radial-gradient(circle at 50% 120%,transparent 0 55%,#000 56%);mask:radial-gradient(circle at 50% 120%,transparent 0 55%,#000 56%);opacity:.75}
+    .t_ocean .bubble{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.95),rgba(255,255,255,.05));border:1px solid rgba(0,145,234,.12);box-shadow:0 10px 18px rgba(17,24,39,.06);opacity:.85}
+    .t_ocean .b1{width:14mm;height:14mm;right:10mm;top:16mm}
+    .t_ocean .b2{width:10mm;height:10mm;right:26mm;top:32mm}
+    .t_ocean .b3{width:8mm;height:8mm;right:14mm;top:44mm}
+    .t_ocean .fish{position:absolute;left:10mm;top:14mm;width:22mm;height:12mm;border-radius:999px;background:radial-gradient(circle at 35% 35%,#ffd6a5 0 50%,#ff9f1c 51% 100%);box-shadow:0 12px 20px rgba(17,24,39,.08);transform:rotate(-10deg);opacity:.95}
+    .t_ocean .fish:before{content:"";position:absolute;right:-10mm;top:2mm;width:10mm;height:8mm;background:rgba(255,159,28,.85);border-radius:2mm 8mm 8mm 2mm;transform:rotate(18deg)}
+    .t_ocean .fish:after{content:"";position:absolute;left:6mm;top:4mm;width:2.2mm;height:2.2mm;border-radius:50%;background:rgba(17,24,39,.65)}
+
+    /* ④ 森林小熊 🐻🌿 */
+    .t_forest{background:linear-gradient(180deg,#fff,#f6fff5)}
+    .t_forest .leaf{position:absolute;width:26mm;height:18mm;border-radius:26mm 26mm 26mm 0;background:radial-gradient(circle at 35% 35%,#b7f7c2 0 50%,#34d399 51% 100%);opacity:.75;transform:rotate(-18deg);filter:drop-shadow(0 12px 18px rgba(17,24,39,.08))}
+    .t_forest .l1{left:-8mm;top:10mm}
+    .t_forest .l2{right:-10mm;bottom:8mm;transform:rotate(22deg);opacity:.55}
+    .t_forest .bear{position:absolute;right:12mm;top:14mm;width:20mm;height:20mm;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe9c7 0 48%,#c0841d 49% 100%);box-shadow:0 12px 18px rgba(17,24,39,.10);opacity:.9}
+    .t_forest .bear:before,.t_forest .bear:after{content:"";position:absolute;width:8mm;height:8mm;border-radius:50%;background:rgba(192,132,29,.92);top:-2mm}
+    .t_forest .bear:before{left:1mm}
+    .t_forest .bear:after{right:1mm}
+
+    /* ⑤ 糖果派对 🍬🍭 */
+    .t_candy{background:linear-gradient(180deg,#fff,#fff3fb)}
+    .t_candy .sprinkle{position:absolute;width:5mm;height:2mm;border-radius:999px;opacity:.85;filter:drop-shadow(0 8px 12px rgba(17,24,39,.08))}
+    .t_candy .s1{left:12mm;top:12mm;background:#ff6f91;transform:rotate(18deg)}
+    .t_candy .s2{left:22mm;top:22mm;background:#7c3aed;transform:rotate(-20deg)}
+    .t_candy .s3{left:36mm;top:14mm;background:#06b6d4;transform:rotate(12deg)}
+    .t_candy .s4{right:26mm;bottom:18mm;background:#f59e0b;transform:rotate(-14deg)}
+    .t_candy .s5{right:14mm;bottom:30mm;background:#22c55e;transform:rotate(22deg)}
+    .t_candy .lolli{position:absolute;right:12mm;top:10mm;width:18mm;height:18mm;border-radius:50%;background:conic-gradient(from 0deg,#ff6f91,#ffd166,#06b6d4,#a78bfa,#ff6f91);box-shadow:0 12px 18px rgba(17,24,39,.10);opacity:.9}
+    .t_candy .stick{position:absolute;right:19mm;top:26mm;width:2mm;height:18mm;border-radius:999px;background:rgba(17,24,39,.12);opacity:.9;transform:rotate(18deg)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>名卡制作器（学科出品，郭哥救我QAQ）</h1>
+    <span class="badge">白金界面｜上传 xlsx → 第1列(姓名)+第2列(时段) → A4竖向三折立牌（上/中名卡全填充，下空白）</span>
+  </header>
+
+  <div class="app">
+    <!-- 左侧：设置 -->
+    <section class="panel left">
+      <div class="hd">
+        <h2>① 导入数据</h2>
+        <span class="pill" id="countPill">0 条</span>
+      </div>
+      <div class="bd">
+        <div class="drop" id="dropZone">
+          <div class="icon">📄</div>
+          <div class="meta"><b>拖拽 xlsx 到这里</b><span>或点击选择文件（只读取第1/2列）</span></div>
+          <input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none" />
+          <button class="primary" id="pickBtn">选择文件</button>
+        </div>
+
+        <div class="hint">
+          ✅ 表格：第1列=姓名，第2列=时段；若第一行是表头会自动跳过。<br/>
+          🖨️ 导出 PDF 想要彩色背景：请在打印对话框勾选 <b>“背景图形”</b>（Chrome 默认不勾会变“黑白/纯白”）。
+        </div>
+
+        <div class="mini-table" id="miniTable" style="display:none">
+          <table><thead><tr><th>#</th><th>姓名</th><th>时段</th></tr></thead><tbody id="miniTbody"></tbody></table>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="panel" style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;box-shadow:0 8px 18px rgba(17,24,39,.06);">
+          <div class="hd" style="border-bottom:1px solid #eef2f7">
+            <h2>② 输出模式</h2>
+            <span class="pill" id="modePill">A4三折立牌（竖向）</span>
+          </div>
+          <div class="bd">
+            <div class="grid2">
+              <div>
+                <label>打印类型</label>
+                <select id="modeSel">
+                  <option value="tent">A4 三折立牌（竖向：上/中名卡，下空白）</option>
+                  <option value="grid">普通名卡（A4 竖向排版）</option>
+                </select>
+              </div>
+              <div>
+                <label>立牌预览缩放</label>
+                <input id="tentScale" type="range" min="0.55" max="1" step="0.01" value="0.86" />
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="grid2">
+              <div>
+                <label>时段位置</label>
+                <select id="slotPos">
+                  <option value="tr">右上</option>
+                  <option value="bl">左下</option>
+                  <option value="center">居中（姓名下方）</option>
+                </select>
+              </div>
+              <div>
+                <label>立牌：上半张旋转</label>
+                <select id="rotSel">
+                  <option value="on">开启（上面倒着/下面正着）</option>
+                  <option value="off">关闭</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="height:12px"></div>
+
+            <!-- ✅ 新增：字号按钮（立牌） -->
+            <div class="panel" style="background:#fff;border-radius:14px;border:1px solid #eef2f7;box-shadow:none">
+              <div class="hd" style="border-bottom:1px solid #eef2f7">
+                <h2>字号快捷按钮（立牌）</h2>
+                <span class="pill">±2</span>
+              </div>
+              <div class="bd">
+                <div class="grid2">
+                  <div>
+                    <label>姓名字号(px)</label>
+                    <div class="stepper">
+                      <button class="miniBtn" id="tnMinus" type="button">－</button>
+                      <input id="tentNameSize" type="number" min="28" max="140" value="72" />
+                      <button class="miniBtn" id="tnPlus" type="button">＋</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label>时段字号(px)</label>
+                    <div class="stepper">
+                      <button class="miniBtn" id="tsMinus" type="button">－</button>
+                      <input id="tentSlotSize" type="number" min="12" max="80" value="20" />
+                      <button class="miniBtn" id="tsPlus" type="button">＋</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="hint">这两个只影响 <b>A4三折立牌</b> 预览/打印。</div>
+              </div>
+            </div>
+
+            <div class="hint">🖨️ 打印建议：A4 纵向；缩放选“适合页面/默认”。</div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="panel" style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;box-shadow:0 8px 18px rgba(17,24,39,.06);">
+          <div class="hd" style="border-bottom:1px solid #eef2f7"><h2>③ 选择主题（5款卡通）</h2><span class="pill" id="tplPill">主题：天空彩虹</span></div>
+          <div class="bd">
+            <div class="tplGrid" id="tplGrid"></div>
+            <div class="hint">（主题只影响“名卡”，界面一直白金色）</div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="panel" id="gridSettings" style="background:#fff;border-radius:14px;border:1px solid #e5e7eb;box-shadow:0 8px 18px rgba(17,24,39,.06);">
+          <div class="hd" style="border-bottom:1px solid #eef2f7"><h2>④ 普通名卡设置（仅“普通名卡”模式使用）</h2><span class="pill">A4 竖向</span></div>
+          <div class="bd">
+            <div class="grid2">
+              <div><label>每页列数</label><select id="colsSel"><option value="1">1 列</option><option value="2">2 列</option><option value="3">3 列</option></select></div>
+              <div><label>裁切虚线</label><select id="cutSel"><option value="on">开启</option><option value="off">关闭</option></select></div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div class="grid3">
+              <div><label>名卡宽(mm)</label><input id="cw" type="number" min="40" max="210" value="160" /></div>
+              <div><label>名卡高(mm)</label><input id="ch" type="number" min="30" max="140" value="70" /></div>
+              <div><label>间距(mm)</label><input id="gap" type="number" min="0" max="30" value="12" /></div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <!-- ✅ 新增：字号按钮（普通名卡） -->
+            <div class="grid2">
+              <div>
+                <label>姓名字号(px)</label>
+                <div class="stepper">
+                  <button class="miniBtn" id="gnMinus" type="button">－</button>
+                  <input id="ns" type="number" min="18" max="140" value="56" />
+                  <button class="miniBtn" id="gnPlus" type="button">＋</button>
+                </div>
+              </div>
+              <div>
+                <label>时段字号(px)</label>
+                <div class="stepper">
+                  <button class="miniBtn" id="gsMinus" type="button">－</button>
+                  <input id="ss" type="number" min="10" max="60" value="18" />
+                  <button class="miniBtn" id="gsPlus" type="button">＋</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="height:10px"></div>
+
+            <div>
+              <label>普通名卡预览缩放</label>
+              <input id="scale" type="range" min="0.45" max="1" step="0.01" value="0.92" />
+            </div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="btns">
+          <button class="primary" id="printBtn" disabled>🖨️ 打印 / 导出 PDF</button>
+          <button id="clearBtn" class="danger" disabled>🧹 清空</button>
+          <button id="demoBtn" type="button">✨ 填充演示数据</button>
+        </div>
+
+        <div class="hint">
+          📌 导出 PDF 彩色：<b>一定勾选</b> 打印对话框的 <b>“背景图形”</b> ✅<br/>
+          如果仍黑白：去“更多设置/更多选项”里把“颜色”改成“彩色”，不要“灰度/黑白”。
+        </div>
+      </div>
+    </section>
+
+    <!-- 右侧：预览 -->
+    <section class="panel">
+      <div class="hd">
+        <h2>实时预览（可直接打印）</h2>
+        <div><span class="pill" id="sheetPill">工作表：—</span><span class="pill">读取：第1/2列</span></div>
+      </div>
+
+      <div class="stageWrap">
+        <div class="empty" id="emptyState">
+          这里会显示预览 👀<br/>
+          ① 上传 xlsx（第1列=姓名，第2列=时段）<br/>
+          ② 默认：A4竖向三折立牌（上/中名卡全填充，下空白）
+        </div>
+
+        <div class="paper cutline" id="gridPaper" style="display:none">
+          <div class="cards" id="cards" style="display:none"></div>
+        </div>
+
+        <div class="tentPages" id="tentPages" style="display:none"></div>
+      </div>
+    </section>
+  </div>
+
+<script>
+  const state = { template:'rainbow', rows:[], sheetName:'', mode:'tent', rotTop:'on' };
+
+  const TEMPLATES = [
+    { id:'rainbow', name:'天空彩虹', cls:'t_rainbow', thumb:'🌈' },
+    { id:'space',   name:'太空火箭', cls:'t_space',   thumb:'🚀' },
+    { id:'ocean',   name:'海底小鱼', cls:'t_ocean',   thumb:'🐟' },
+    { id:'forest',  name:'森林小熊', cls:'t_forest',  thumb:'🐻' },
+    { id:'candy',   name:'糖果派对', cls:'t_candy',   thumb:'🍬' },
+  ];
+
+  const $ = (id)=> document.getElementById(id);
+
+  const fileInput = $('fileInput');
+  const pickBtn = $('pickBtn');
+  const dropZone = $('dropZone');
+
+  const modeSel = $('modeSel');
+  const modePill = $('modePill');
+
+  const tplGrid = $('tplGrid');
+  const tplPill = $('tplPill');
+
+  const gridSettings = $('gridSettings');
+  const colsSel = $('colsSel');
+  const cutSel = $('cutSel');
+  const cw = $('cw');
+  const ch = $('ch');
+  const gap = $('gap');
+  const ns = $('ns');
+  const ss = $('ss');
+  const scale = $('scale');
+
+  const slotPos = $('slotPos');
+  const tentScale = $('tentScale');
+  const rotSel = $('rotSel');
+
+  // ✅ 立牌字号输入
+  const tentNameSize = $('tentNameSize');
+  const tentSlotSize = $('tentSlotSize');
+
+  const printBtn = $('printBtn');
+  const clearBtn = $('clearBtn');
+  const demoBtn = $('demoBtn');
+
+  const countPill = $('countPill');
+  const sheetPill = $('sheetPill');
+
+  const miniTable = $('miniTable');
+  const miniTbody = $('miniTbody');
+
+  const emptyState = $('emptyState');
+  const gridPaper = $('gridPaper');
+  const cardsEl = $('cards');
+  const tentPages = $('tentPages');
+
+  function escapeHtml(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
+
+  function renderTemplatePicker(){
+    tplGrid.innerHTML = '';
+    for(const t of TEMPLATES){
+      const el = document.createElement('div');
+      el.className = 'tpl' + (t.id === state.template ? ' active' : '');
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      thumb.textContent = t.thumb;
+
+      const name = document.createElement('div');
+      name.className = 'tname';
+      name.textContent = t.name;
+
+      el.appendChild(thumb);
+      el.appendChild(name);
+
+      el.addEventListener('click', ()=>{
+        state.template = t.id;
+        tplPill.textContent = '主题：' + t.name;
+        renderTemplatePicker();
+        renderAll();
+      });
+
+      tplGrid.appendChild(el);
+    }
+  }
+
+  async function readXlsx(file){
+    const arrayBuffer = await file.arrayBuffer();
+    const wb = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+    const rows = data
+      .map(r => [String(r[0] ?? '').trim(), String(r[1] ?? '').trim()])
+      .filter(([a,b]) => a || b);
+
+    const header0 = (rows[0]?.[0] || '').replace(/\s/g,'');
+    const header1 = (rows[0]?.[1] || '').replace(/\s/g,'');
+    const looksHeader = /姓名|名字|学生|学员/i.test(header0) && /时段|时间|上课|班次/i.test(header1);
+
+    const body = looksHeader ? rows.slice(1) : rows;
+
+    state.sheetName = sheetName;
+    state.rows = body.map(([name, slot]) => ({ name, slot })).filter(x => x.name);
+
+    updateMiniTable();
+    updatePills();
+    renderAll();
+  }
+
+  function updatePills(){
+    countPill.textContent = `${state.rows.length} 条`;
+    sheetPill.textContent = `工作表：${state.sheetName || '—'}`;
+    printBtn.disabled = state.rows.length === 0;
+    clearBtn.disabled = state.rows.length === 0;
+  }
+
+  function updateMiniTable(){
+    if(state.rows.length === 0){
+      miniTable.style.display = 'none';
+      miniTbody.innerHTML = '';
+      return;
+    }
+    miniTable.style.display = 'block';
+    miniTbody.innerHTML = '';
+    const max = Math.min(40, state.rows.length);
+    for(let i=0;i<max;i++){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${i+1}</td><td>${escapeHtml(state.rows[i].name)}</td><td>${escapeHtml(state.rows[i].slot)}</td>`;
+      miniTbody.appendChild(tr);
+    }
+  }
+
+  function buildCard(nameText, slotText){
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const t = TEMPLATES.find(x=>x.id===state.template) || TEMPLATES[0];
+    card.classList.add(t.cls);
+
+    const decor = document.createElement('div');
+    decor.className = 'decor';
+
+    if(t.id === 'rainbow') decor.innerHTML = `<div class="cloud"></div><div class="sun"></div><div class="rainbow"></div>`;
+    if(t.id === 'space')   decor.innerHTML = `<div class="stars"></div><div class="planet"></div><div class="ring"></div><div class="rocket"></div>`;
+    if(t.id === 'ocean')   decor.innerHTML = `<div class="waves"></div><div class="fish"></div><div class="bubble b1"></div><div class="bubble b2"></div><div class="bubble b3"></div>`;
+    if(t.id === 'forest')  decor.innerHTML = `<div class="leaf l1"></div><div class="leaf l2"></div><div class="bear"></div>`;
+    if(t.id === 'candy')   decor.innerHTML = `<div class="sprinkle s1"></div><div class="sprinkle s2"></div><div class="sprinkle s3"></div><div class="sprinkle s4"></div><div class="sprinkle s5"></div><div class="lolli"></div><div class="stick"></div>`;
+
+    const inner = document.createElement('div');
+    inner.className = 'inner';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = nameText;
+
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.textContent = slotText || '';
+
+    const pos = slotPos.value;
+    if(pos === 'center'){
+      inner.appendChild(name);
+      if(slotText) inner.appendChild(slot);
+    }else{
+      inner.appendChild(name);
+      if(slotText){
+        slot.classList.add('small');
+        if(pos === 'tr') slot.classList.add('tr');
+      }
+    }
+
+    card.appendChild(decor);
+    card.appendChild(inner);
+    if(pos !== 'center' && slotText) card.appendChild(slot);
+
+    return card;
+  }
+
+  function renderGrid(){
+    gridPaper.style.display = 'block';
+    tentPages.style.display = 'none';
+
+    if(state.rows.length === 0){
+      cardsEl.style.display = 'none';
+      cardsEl.innerHTML = '';
+      return;
+    }
+
+    cardsEl.style.display = 'grid';
+    cardsEl.innerHTML = '';
+    for(const row of state.rows) cardsEl.appendChild(buildCard(row.name, row.slot));
+  }
+
+  function renderTent(){
+    gridPaper.style.display = 'none';
+    tentPages.style.display = 'flex';
+
+    tentPages.innerHTML = '';
+    if(state.rows.length === 0) return;
+
+    for(const row of state.rows){
+      const page = document.createElement('div');
+      page.className = 'pageA4';
+
+      const grid = document.createElement('div');
+      grid.className = 'triCols';
+
+      const top = document.createElement('div');
+      top.className = 'triCell';
+      const topWrap = document.createElement('div');
+      topWrap.style.width = '100%';
+      topWrap.style.height = '100%';
+      if(state.rotTop === 'on') topWrap.className = 'rot180';
+      topWrap.appendChild(buildCard(row.name, row.slot));
+      top.appendChild(topWrap);
+
+      const mid = document.createElement('div');
+      mid.className = 'triCell';
+      mid.appendChild(buildCard(row.name, row.slot));
+
+      const bot = document.createElement('div');
+      bot.className = 'triCell blank';
+
+      grid.appendChild(top);
+      grid.appendChild(mid);
+      grid.appendChild(bot);
+
+      const f1 = document.createElement('div'); f1.className = 'foldLineH foldH1';
+      const f2 = document.createElement('div'); f2.className = 'foldLineH foldH2';
+
+      page.appendChild(grid);
+      page.appendChild(f1);
+      page.appendChild(f2);
+
+      tentPages.appendChild(page);
+    }
+  }
+
+  function applyLayout(){
+    // 网格模式变量
+    document.documentElement.style.setProperty('--cols', colsSel.value);
+    document.documentElement.style.setProperty('--card-w', `${Number(cw.value || 160)}mm`);
+    document.documentElement.style.setProperty('--card-h', `${Number(ch.value || 70)}mm`);
+    document.documentElement.style.setProperty('--gap', `${Number(gap.value || 12)}mm`);
+    document.documentElement.style.setProperty('--name-size', `${Number(ns.value || 56)}px`);
+    document.documentElement.style.setProperty('--slot-size', `${Number(ss.value || 18)}px`);
+    document.documentElement.style.setProperty('--scale', String(scale.value || 0.92));
+
+    const pad = Math.max(10, Math.min(22, Math.round(Number(ch.value || 70) * 0.22)));
+    document.documentElement.style.setProperty('--card-pad', `${pad}mm`);
+
+    gridPaper.classList.toggle('cutline', cutSel.value === 'on');
+
+    // 立牌缩放 + 立牌字号
+    document.documentElement.style.setProperty('--tent-scale', String(tentScale.value || 0.86));
+    document.documentElement.style.setProperty('--tent-name-size', `${Number(tentNameSize.value || 72)}px`);
+    document.documentElement.style.setProperty('--tent-slot-size', `${Number(tentSlotSize.value || 20)}px`);
+  }
+
+  function applyMode(){
+    state.mode = modeSel.value;
+    state.rotTop = rotSel.value;
+    modePill.textContent = (state.mode === 'tent') ? 'A4三折立牌（竖向）' : '普通名卡';
+    const isGrid = state.mode === 'grid';
+    gridSettings.style.display = isGrid ? 'block' : 'none';
+    renderAll();
+  }
+
+  function renderAll(){
+    applyLayout();
+    if(state.rows.length === 0){
+      emptyState.style.display = 'block';
+      gridPaper.style.display = 'none';
+      tentPages.style.display = 'none';
+      return;
+    }
+    emptyState.style.display = 'none';
+    if(state.mode === 'tent') renderTent();
+    else renderGrid();
+  }
+
+  // ✅ 字号按钮逻辑
+  function bumpNumber(inputEl, delta){
+    const min = Number(inputEl.min || -1e9);
+    const max = Number(inputEl.max ||  1e9);
+    const cur = Number(inputEl.value || 0);
+    const next = Math.max(min, Math.min(max, cur + delta));
+    inputEl.value = String(next);
+    inputEl.dispatchEvent(new Event('input', {bubbles:true}));
+  }
+
+  // 立牌字号按钮
+  $('tnMinus').addEventListener('click', ()=> bumpNumber(tentNameSize, -2));
+  $('tnPlus').addEventListener('click',  ()=> bumpNumber(tentNameSize, +2));
+  $('tsMinus').addEventListener('click', ()=> bumpNumber(tentSlotSize, -2));
+  $('tsPlus').addEventListener('click',  ()=> bumpNumber(tentSlotSize, +2));
+
+  // 普通名卡字号按钮
+  $('gnMinus').addEventListener('click', ()=> bumpNumber(ns, -2));
+  $('gnPlus').addEventListener('click',  ()=> bumpNumber(ns, +2));
+  $('gsMinus').addEventListener('click', ()=> bumpNumber(ss, -2));
+  $('gsPlus').addEventListener('click',  ()=> bumpNumber(ss, +2));
+
+  // 文件导入
+  pickBtn.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', async (e)=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    await readXlsx(file);
+  });
+
+  // 拖拽
+  ['dragenter','dragover'].forEach(evt=>{
+    dropZone.addEventListener(evt, (e)=>{ e.preventDefault(); dropZone.style.background = 'rgba(255,250,240,.85)'; });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    dropZone.addEventListener(evt, (e)=>{ e.preventDefault(); dropZone.style.background = 'rgba(255,250,240,.65)'; });
+  });
+  dropZone.addEventListener('drop', async (e)=>{
+    const file = e.dataTransfer?.files?.[0];
+    if(!file) return;
+    if(!/\.(xlsx|xls)$/i.test(file.name)){ alert('请拖拽 .xlsx 或 .xls 文件'); return; }
+    await readXlsx(file);
+  });
+
+  // 变更监听
+  modeSel.addEventListener('change', applyMode);
+  rotSel.addEventListener('change', applyMode);
+
+  [colsSel, cutSel, cw, ch, gap, ns, ss, scale, slotPos, tentScale, tentNameSize, tentSlotSize].forEach(el=>{
+    el.addEventListener('input', renderAll);
+    el.addEventListener('change', renderAll);
+  });
+
+  // 打印
+  printBtn.addEventListener('click', ()=> window.print());
+
+  // 清空
+  clearBtn.addEventListener('click', ()=>{
+    state.rows = [];
+    state.sheetName = '';
+    fileInput.value = '';
+    updateMiniTable(); updatePills(); renderAll();
+  });
+
+  // 演示
+  demoBtn.addEventListener('click', ()=>{
+    state.sheetName = '演示数据';
+    state.rows = [
+      {name:'郭思羽', slot:'12:00-14:30'},
+      {name:'皮兆麟', slot:'二期 08:30-11:00'},
+      {name:'郑梦溪', slot:'12:00-14:30'},
+    ];
+    updateMiniTable(); updatePills(); renderAll();
+  });
+
+  // 初始化
+  renderTemplatePicker();
+  tplPill.textContent = '主题：天空彩虹';
+  applyMode();
+  updatePills();
+</script>
+</body>
+</html>

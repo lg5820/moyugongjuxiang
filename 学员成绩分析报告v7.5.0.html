@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学员测试诊断分析系统-PRO v7.5.0</title>
+    <!-- 核心依赖 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+        
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f1f5f9; color: #1e293b; margin: 0; padding: 0; }
+        
+        .report-page { 
+            background: white; 
+            width: 210mm; 
+            height: 295.5mm; 
+            padding: 10mm 15mm; 
+            margin: 20px auto; 
+            position: relative; 
+            display: flex;
+            flex-direction: column; 
+            overflow: hidden; 
+            border-top: 6px solid #2563eb;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.06); 
+        }
+
+        .exporting .report-page { box-shadow: none !important; margin: 0 !important; border-top: 6px solid #2563eb !important; }
+        .page-one-break { page-break-after: always !important; break-after: page !important; }
+
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background: white; }
+            .no-print { display: none !important; }
+            .report-page { margin: 0 !important; border-top: none; }
+        }
+
+        .custom-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; table-layout: fixed; }
+        .custom-table th { background-color: #f8fafc; color: #64748b; font-weight: 800; padding: 8px 4px; font-size: 0.6rem; text-align: center; border-bottom: 2px solid #f1f5f9; }
+        .custom-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 0.65rem; color: #334155; word-break: break-all; vertical-align: middle; }
+        
+        .p1-table td { line-height: 1.4; }
+        .p2-table td { line-height: 2.2; }
+
+        .col-no { width: 48px !important; text-align: center !important; font-weight: 900; color: #64748b; white-space: nowrap !important; overflow: hidden; }
+        .col-module { width: 45px !important; text-align: center !important; font-weight: 700; color: #1e40af; }
+        .col-point { width: 110px !important; }
+        .col-coord { width: 100px !important; }
+        .col-suggest { width: 120px !important; }
+        .col-score { width: 50px !important; text-align: center !important; font-weight: 900; }
+
+        .summary-card { background: white; border-radius: 2rem; border: 1px solid #e2e8f0; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.03); }
+        .summary-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: linear-gradient(90deg, #2563eb, #8b5cf6); }
+
+        .grade-badge { padding: 2px 10px; border-radius: 99px; font-weight: 900; font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .evaluation-zone { 
+            margin-top: 2rem;
+            background-color: #fff;
+            border: 2px solid #f8fafc;
+            border-radius: 1.5rem;
+            padding: 1.5rem 2rem;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+            flex-shrink: 0;
+            height: 280px; 
+            display: flex;
+            flex-direction: column;
+        }
+        .evaluation-lines { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 10px 0; }
+        .evaluation-lines div { border-bottom: 1px dashed #cbd5e1; height: 1.8rem; width: 100%; }
+
+        .btn-premium { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; transition: all 0.2s ease; border-radius: 1rem; }
+        .btn-premium:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        .loader { border: 2px solid #f3f3f3; border-top: 2px solid #3b82f6; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="p-6">
+
+    <!-- 控制中心 -->
+    <div class="max-w-6xl mx-auto no-print action-panel bg-white p-8 rounded-[3rem] shadow-2xl mb-12 border border-slate-100 relative">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+            <div class="flex items-center">
+                <div class="bg-blue-600 p-4 rounded-3xl shadow-xl shadow-blue-100 mr-6">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black text-slate-800 tracking-tighter">学员诊断分析系统 <span class="text-blue-600 text-sm ml-1 px-2 py-0.5 border-2 border-blue-600 rounded-lg">v7.5.0</span></h1>
+                    <p class="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest italic">学科出品（郭哥救我QAQ）</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="App.downloadTpl('card')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold hover:bg-slate-50 shadow-sm transition-all">模板-知识库</button>
+                <button onclick="App.downloadTpl('score')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold hover:bg-slate-50 shadow-sm transition-all">模板-录分单</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1">
+                <label class="block text-[10px] font-black text-slate-500 mb-2 uppercase tracking-widest">报告主标题</label>
+                <input type="text" id="reportTitle" placeholder="如：2026年零期测试诊断报告" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold text-slate-700 focus:ring-4 focus:ring-blue-100 transition-all">
+            </div>
+            <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-5 rounded-2xl border-2 border-dashed border-blue-100 bg-blue-50/30">
+                    <span class="block text-[10px] font-black text-blue-600 mb-3 uppercase tracking-widest">1. 导入知识点库表格</span>
+                    <input type="file" id="knowledgeFile" multiple class="text-[11px] text-slate-500 file:bg-blue-600 file:text-white file:border-0 file:px-4 file:py-1.5 file:rounded-lg file:font-bold cursor-pointer">
+                </div>
+                <div class="p-5 rounded-2xl border-2 border-dashed border-emerald-100 bg-emerald-50/30">
+                    <span class="block text-[10px] font-black text-blue-600 mb-3 uppercase tracking-widest">2. 导入学员录分表</span>
+                    <input type="file" id="scoreFile" class="text-[11px] text-slate-500 file:bg-emerald-600 file:text-white file:border-0 file:px-4 file:py-1.5 file:rounded-lg file:font-bold cursor-pointer">
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10 flex gap-4 pt-8 border-t border-slate-50">
+            <button onclick="App.process()" class="px-12 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-100 hover:scale-[1.02] transition-all text-sm">生成诊断分析预览</button>
+            <button id="zipBtn" onclick="App.exportZip()" class="hidden px-10 py-4 btn-premium font-black shadow-lg text-sm">打包导出 PDF 数据包</button>
+        </div>
+    </div>
+
+    <div id="msgBox" class="max-w-5xl mx-auto hidden mb-10 p-5 rounded-3xl text-center font-bold animate-pulse"></div>
+
+    <!-- 班级看板 -->
+    <div id="summaryZone" class="max-w-[1500px] mx-auto hidden no-print mb-20 px-6">
+        <h2 class="text-2xl font-black text-slate-800 mb-8 flex items-center gap-3"><span class="w-2 h-8 bg-blue-600 rounded-full"></span> 全班测试数据概览</h2>
+        <div id="summaryContainer" class="space-y-16"></div>
+    </div>
+
+    <div id="reportContainer"></div>
+
+    <script>
+        const CONFIG = {
+            KEYWORDS: ["零期", "一期", "二期", "三期", "周中", "周末", "寒假", "暑假", "秋季", "春季"],
+            TYPE_REGEX: /[ASBL]\d+[A-Z]*/i,
+            SPECIAL_CLASSES: ["A5", "A5S", "A6", "A7"],
+            LEVELS: [
+                { min: 90, label: "卓越", color: "bg-purple-200 text-purple-900" },
+                { min: 80, label: "优秀", color: "bg-blue-200 text-blue-900" },
+                { min: 70, label: "良好", color: "bg-emerald-200 text-emerald-900" },
+                { min: 60, label: "合格", color: "bg-amber-200 text-amber-900" },
+                { min: 0, label: "待提升", color: "bg-rose-200 text-rose-900" }
+            ],
+            PAGE_1_LIMIT: 11
+        };
+
+        const escapeHTML = (str) => {
+            if (!str) return "";
+            return String(str).replace(/[&<>"']/g, (m) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        };
+
+        const App = {
+            store: {
+                knowledge: {}, 
+                records: [],   
+                stats: {},     
+                title: ""
+            },
+
+            robustSum: (rec, cols) => {
+                return cols.reduce((sum, col) => {
+                    if (!col) return sum;
+                    const val = parseFloat(String(rec[col] || "0").replace(/[^\d.]/g, ''));
+                    return sum + (isNaN(val) ? 0 : val);
+                }, 0);
+            },
+
+            getIdent: (text) => {
+                const textStr = String(text);
+                const bMatch = textStr.match(CONFIG.TYPE_REGEX)?.[0]?.toUpperCase() || "";
+                if (CONFIG.SPECIAL_CLASSES.includes(bMatch)) return { key: bMatch, b: bMatch };
+                const tMatch = CONFIG.KEYWORDS.find(x => textStr.includes(x)) || "";
+                return { key: `${tMatch}${bMatch}`, b: bMatch };
+            },
+
+            getLevel: (score, full) => {
+                if (!full) return CONFIG.LEVELS[4];
+                const ratio = (score / full) * 100;
+                return CONFIG.LEVELS.find(l => ratio >= l.min) || CONFIG.LEVELS[4];
+            },
+
+            downloadTpl: (type) => {
+                const wb = XLSX.utils.book_new();
+                const data = type === 'card' 
+                    ? [["题号", "知识点", "模块", "分值", "母题坐标", "举一反三"]] 
+                    : [["时段", "班型", "姓名", "Q1", "Q2", "Q3", "得分"]];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Sheet1");
+                XLSX.writeFile(wb, `${type === 'card' ? '知识库' : '录分单'}模板.xlsx`);
+            },
+
+            process: async () => {
+                const kIn = document.getElementById('knowledgeFile');
+                const sIn = document.getElementById('scoreFile');
+                App.store.title = document.getElementById('reportTitle').value || "测试诊断分析报告";
+                
+                if (!kIn.files.length || !sIn.files[0]) return App.msg("请导入完整文件", "error");
+
+                App.store.knowledge = {};
+                App.store.records = [];
+                App.store.stats = {};
+
+                try {
+                    for (let f of kIn.files) {
+                        const wb = XLSX.read(await f.arrayBuffer());
+                        wb.SheetNames.forEach(sn => {
+                            const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 });
+                            if (!raw.length) return;
+                            const id = App.getIdent(`${f.name} ${sn} ${raw[0]?.[0]}`);
+                            const hIdx = raw.findIndex(r => r.some(c => String(c).includes("题号")));
+                            const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { range: hIdx === -1 ? 1 : hIdx });
+                            if (id.key) App.store.knowledge[id.key] = data.map(r => ({
+                                no: escapeHTML(String(r["题号"] || "").replace(/第|题/g, '').trim()),
+                                p: escapeHTML(r["知识点"] || "-"),
+                                m: escapeHTML(r["模块"] || "计算"),
+                                c: escapeHTML(r["母题坐标"] || "-"),
+                                v: escapeHTML(r["举一反三"] || "-"),
+                                val: parseFloat(r["分值"]) || 0
+                            }));
+                        });
+                    }
+
+                    const sWb = XLSX.read(await sIn.files[0].arrayBuffer());
+                    let combinedRecords = [];
+                    
+                    for (let sn of sWb.SheetNames) {
+                        const sheet = sWb.Sheets[sn];
+                        const dataArr = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                        const hIdx = dataArr.findIndex(r => r.some(c => ["姓名", "班型", "时段"].includes(String(c))));
+                        
+                        if (hIdx !== -1) {
+                            const sheetRecords = XLSX.utils.sheet_to_json(sheet, { range: hIdx });
+                            if (sheetRecords.length > 0) {
+                                combinedRecords = combinedRecords.concat(sheetRecords);
+                            }
+                        }
+                    }
+
+                    if (combinedRecords.length === 0) throw new Error("录分表为空或未找到有效表头（需包含‘姓名’或‘班型’字段）");
+
+                    const groupData = {};
+
+                    App.store.records = combinedRecords.map(rec => {
+                        const bMatch = String(rec["班型"] || "").toUpperCase();
+                        let key = `${rec["时段"] || ""}${bMatch}`;
+                        if (CONFIG.SPECIAL_CLASSES.includes(bMatch)) key = bMatch;
+
+                        const cards = App.store.knowledge[key] || [];
+                        const keys = Object.keys(rec);
+                        // 核心逻辑升级：通过“得分”或“总分”列的位置，逆向确定题目列
+                        const scoreColIdx = keys.findIndex(k => k.includes("得分") || k.includes("总分"));
+                        
+                        let localQuestions = [];
+                        if (scoreColIdx !== -1) {
+                            // 从得分列往左数 N 个，即为该班型的题目列
+                            for (let i = cards.length; i > 0; i--) {
+                                localQuestions.push(keys[scoreColIdx - i]);
+                            }
+                        } else {
+                            // 降级方案：如果没有得分列，尝试过滤非题目列
+                            localQuestions = keys.filter(k => !["时段", "班型", "姓名", "系统", "评价"].some(ex => k.includes(ex)));
+                        }
+
+                        const score = App.robustSum(rec, localQuestions);
+                        
+                        if (!groupData[key]) groupData[key] = { scores: [], qAgg: {} };
+                        groupData[key].scores.push(score);
+
+                        cards.forEach((card, i) => {
+                            const qIdx = i + 1;
+                            const colName = localQuestions[i];
+                            const val = parseFloat(String(rec[colName] || "0").replace(/[^\d.]/g, '')) || 0;
+                            if (!groupData[key].qAgg[qIdx]) groupData[key].qAgg[qIdx] = 0;
+                            groupData[key].qAgg[qIdx] += val;
+                        });
+
+                        return { ...rec, _calcScore: score, _key: key, _localQs: localQuestions };
+                    });
+
+                    Object.keys(groupData).forEach(k => {
+                        const g = groupData[k];
+                        const cards = App.store.knowledge[k] || [];
+                        const modules = [...new Set(cards.map(c => c.m))];
+                        
+                        const mStats = modules.map(m => {
+                            const mCards = cards.filter(c => c.m === m);
+                            const tPossible = mCards.reduce((a,b) => a + b.val, 0) * g.scores.length;
+                            const tEarned = mCards.reduce((acc, card) => {
+                                const qIdx = cards.indexOf(card) + 1;
+                                return acc + (g.qAgg[qIdx] || 0);
+                            }, 0);
+                            return Math.round((tEarned / tPossible) * 100) || 0;
+                        });
+
+                        App.store.stats[k] = {
+                            avg: (g.scores.reduce((a,b)=>a+b,0)/g.scores.length).toFixed(1),
+                            max: Math.max(...g.scores),
+                            scores: g.scores,
+                            full: cards.reduce((a,b)=>a+b.val, 0),
+                            mLabels: modules,
+                            mData: mStats,
+                            qAgg: g.qAgg
+                        };
+                    });
+
+                    App.renderAll();
+                    document.getElementById('summaryZone').classList.remove('hidden');
+                    document.getElementById('zipBtn').classList.remove('hidden');
+                    App.msg("来了来了，救你来了→_→", "success");
+                } catch (e) {
+                    console.error(e);
+                    App.msg(e.message || "解析异常，请检查文件格式", "error");
+                }
+            },
+
+            msg: (m, t) => {
+                const b = document.getElementById('msgBox');
+                b.innerText = m;
+                b.className = `max-w-5xl mx-auto mb-10 p-5 rounded-3xl text-center font-bold ${t==='error'?'bg-red-50 text-red-600 border border-red-100 shadow-sm':'bg-blue-50 text-blue-600 border border-blue-100 shadow-sm'}`;
+                b.classList.remove('hidden');
+            },
+
+            renderAll: () => {
+                App.renderSummary();
+                App.renderStudentReports();
+            },
+
+            renderSummary: () => {
+                const container = document.getElementById('summaryContainer');
+                container.innerHTML = "";
+                
+                Object.keys(App.store.stats).forEach((k, idx) => {
+                    const s = App.store.stats[k];
+                    const div = document.createElement('div');
+                    div.dataset.key = k;
+                    div.className = "summary-card p-10 grid grid-cols-12 gap-8 items-start";
+                    div.innerHTML = `
+                        <div class="col-span-12 flex justify-between items-end mb-6 border-b border-slate-50 pb-8">
+                            <div><h3 class="text-3xl font-black text-slate-800">${escapeHTML(k)} 班级成绩画像</h3></div>
+                            <div class="flex gap-4">
+                                <div class="px-8 py-3 bg-blue-50 rounded-2xl border border-blue-100 text-center"><span class="block text-[10px] text-blue-400 font-black">均分</span><span class="text-3xl font-black text-blue-600">${s.avg}</span></div>
+                                <div class="px-8 py-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-center"><span class="block text-[10px] text-emerald-400 font-black">最高</span><span class="text-3xl font-black text-emerald-600">${s.max}</span></div>
+                                <div class="px-8 py-3 bg-slate-50 rounded-2xl border border-slate-200 text-center"><span class="block text-[10px] text-slate-400 font-black">人数</span><span class="text-3xl font-black text-blue-600">${s.scores.length}</span></div>
+                            </div>
+                        </div>
+                        <div class="col-span-3 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 flex flex-col items-center">
+                            <div class="w-full h-56"><canvas id="classRadar-${idx}"></canvas></div>
+                            <div class="mt-6 grid grid-cols-2 gap-3 w-full">
+                                ${s.mLabels.map((l, i) => `<div class="bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-50 flex justify-between items-center"><span class="text-[10px] font-bold text-slate-500 whitespace-nowrap">${l}</span><span class="text-[10px] font-black text-blue-600 ml-1">${s.mData[i]}%</span></div>`).join('')}
+                            </div>
+                        </div>
+                        <div class="col-span-4 flex flex-col justify-center pt-10"><canvas id="distChart-${idx}" height="280"></canvas></div>
+                        <div class="col-span-5 h-full">
+                            <table class="custom-table h-full">
+                                <thead><tr><th class="col-no">No.</th><th>考点均分 / 满分</th><th>平均得分率趋势</th></tr></thead>
+                                <tbody>${(App.store.knowledge[k] || []).map((c, i) => {
+                                    const avg = (s.qAgg[i+1] / s.scores.length).toFixed(1);
+                                    const rate = Math.round((avg/c.val)*100) || 0;
+                                    return `<tr><td class="col-no text-blue-600">${c.no}</td><td class="font-black text-slate-600 text-center">${avg} / ${c.val}</td><td><div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner"><div class="bg-blue-600 h-full" style="width:${rate}%"></div></div></td></tr>`;
+                                }).join('')}</tbody>
+                            </table>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                    App.initDistChart(`distChart-${idx}`, s.scores, s.full);
+                    App.initRadar(`classRadar-${idx}`, s.mLabels, s.mData, null, 'rgba(37, 99, 235, 0.1)');
+                });
+            },
+
+            renderStudentReports: () => {
+                const container = document.getElementById('reportContainer');
+                container.innerHTML = "";
+                
+                App.store.records.forEach((std, idx) => {
+                    const cards = App.store.knowledge[std._key] || [];
+                    if (!cards.length) return;
+
+                    const stats = App.store.stats[std._key];
+                    const level = App.getLevel(std._calcScore, stats.full);
+                    const modules = stats.mLabels;
+                    
+                    const studentMData = modules.map(m => {
+                        const mCards = cards.filter(c => c.m === m);
+                        const t = mCards.reduce((a,b)=>a+b.val, 0);
+                        const o = mCards.reduce((a,b) => a + (parseFloat(String(std[std._localQs[cards.indexOf(b)]] || "0").replace(/[^\d.]/g, '')) || 0), 0);
+                        return Math.round((o/t)*100) || 0;
+                    });
+
+                    const p1 = cards.slice(0, CONFIG.PAGE_1_LIMIT), p2 = cards.slice(CONFIG.PAGE_1_LIMIT);
+                    const wrap = document.createElement('div');
+                    wrap.className = "student-report-set";
+                    wrap.dataset.fname = `${std._key}-${std["姓名"]}-${std._calcScore}分.pdf`;
+                    
+                    wrap.innerHTML = `
+                        <!-- P1 -->
+                        <div class="report-page page-one-break">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="border-l-[6px] border-blue-600 pl-4"><h2 class="text-xl font-black text-slate-800">${escapeHTML(App.store.title)}</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Diagnostic Report · P1</p></div>
+                                <div class="text-[10px] font-black text-slate-200 italic tracking-tighter">HGKT</div>
+                            </div>
+                            <div class="bg-slate-50 rounded-3xl p-5 mb-4 flex justify-between items-center border border-slate-100 shadow-sm">
+                                <div class="flex gap-10">
+                                    <div><span class="block text-[8px] font-black text-slate-400 uppercase mb-1">姓名</span><span class="text-xl font-black text-slate-800">${escapeHTML(std["姓名"])}</span></div>
+                                    <div><span class="block text-[8px] font-black text-slate-400 uppercase mb-1">班级</span><span class="text-xs font-bold text-slate-600">${escapeHTML(std._key)}</span></div>
+                                    <div><span class="block text-[8px] font-black text-slate-400 uppercase mb-1">等级</span><span class="grade-badge ${level.color}">${level.label}</span></div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="block text-[8px] font-black text-slate-400 uppercase mb-1">实得分 / 班均分</span>
+                                    <div class="flex items-baseline justify-end gap-1"><span class="text-4xl font-black text-blue-600">${std._calcScore}</span><span class="text-base font-bold text-slate-300">/ ${stats.avg}</span></div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-4 items-center bg-white border border-slate-50 p-5 rounded-3xl shadow-sm">
+                                <div class="h-40"><canvas id="radar-${idx}"></canvas></div>
+                                <div class="space-y-1">
+                                    <div class="grid grid-cols-2 gap-1.5">${modules.map((m, i) => `<div class="px-2 py-1.5 rounded-xl border border-slate-50 bg-slate-50/50 flex justify-between items-center"><span class="text-[9px] font-bold text-slate-600">${m}</span><span class="text-[9px] font-black text-blue-600">${studentMData[i]}%</span></div>`).join('')}</div>
+                                    <div class="mt-4 pt-2 border-t border-slate-100 flex items-center gap-3">
+                                        <div class="flex items-center gap-1"><span class="w-2 h-0.5 bg-blue-600"></span><span class="text-[8px] font-bold text-slate-400">个人</span></div>
+                                        <div class="flex items-center gap-1"><span class="w-2 h-0.5 border-t border-dashed border-slate-400"></span><span class="text-[8px] font-bold text-slate-400">班级</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <table class="custom-table p1-table flex-grow">
+                                <thead><tr><th class="col-no">No.</th><th class="col-module">模块</th><th class="col-point">知识考点</th><th class="col-coord">建议坐标</th><th class="col-suggest">建议</th><th class="col-score">得分</th></tr></thead>
+                                <tbody>${p1.map((c, i) => {
+                                    const colName = std._localQs[i];
+                                    const sv = parseFloat(String(std[colName] || "0").replace(/[^\d.]/g, '')) || 0;
+                                    const rowColor = sv >= c.val ? 'bg-emerald-100/40' : (sv <= 0 ? 'bg-rose-100/40' : 'bg-amber-100/40');
+                                    return `<tr class="${rowColor}"><td class="col-no">${c.no}</td><td class="col-module">${c.m}</td><td class="text-[0.6rem] font-bold text-slate-700">${c.p}</td><td class="text-slate-400 italic text-[0.6rem] text-center">${c.c}</td><td class="text-slate-500 text-[0.6rem] leading-tight">${c.v}</td><td class="col-score ${sv==0?'text-rose-500':'text-blue-600'}">${sv} / ${c.val}</td></tr>`;
+                                }).join('')}</tbody>
+                            </table>
+                        </div>
+                        <!-- P2 -->
+                        <div class="report-page">
+                             <div class="flex justify-between items-start mb-6">
+                                <div class="border-l-[6px] border-blue-600 pl-4"><h2 class="text-xl font-black text-slate-800">${escapeHTML(std["姓名"])} · 诊断续页</h2><p class="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1 tracking-tighter">Diagnostic Details · P2</p></div>
+                                <div class="text-[10px] font-black text-slate-200 italic tracking-tighter">HGKT</div>
+                            </div>
+                            ${p2.length ? `<table class="custom-table p2-table">
+                                <thead><tr><th class="col-no">No.</th><th class="col-module">模块</th><th class="col-point">知识考点</th><th class="col-coord">建议坐标</th><th class="col-suggest">建议</th><th class="col-score">得分</th></tr></thead>
+                                <tbody>${p2.map((c, i) => {
+                                    const gi = i + CONFIG.PAGE_1_LIMIT;
+                                    const colName = std._localQs[gi];
+                                    const sv = parseFloat(String(std[colName] || "0").replace(/[^\d.]/g, '')) || 0;
+                                    const rowColor = sv >= c.val ? 'bg-emerald-100/40' : (sv <= 0 ? 'bg-rose-100/40' : 'bg-amber-100/40');
+                                    return `<tr class="${rowColor}"><td class="col-no">${c.no}</td><td class="col-module">${c.m}</td><td class="text-[0.6rem] font-bold text-slate-700">${c.p}</td><td class="text-slate-400 italic text-[0.6rem] text-center">${c.c}</td><td class="text-slate-500 text-[0.6rem] leading-tight">${c.v}</td><td class="col-score ${sv==0?'text-rose-500':'text-blue-600'}">${sv} / ${c.val}</td></tr>`;
+                                }).join('')}</tbody></table>` : '<div class="h-10"></div>'}
+                            <div class="evaluation-zone relative shadow-sm">
+                                <div class="absolute -top-3 left-8 bg-slate-800 text-white text-[7px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest z-10 shadow-lg">Analysis Zone</div>
+                                <h4 class="font-black text-sm text-slate-800 mb-1">学员自评“错题深挖”</h4>
+                                <p class="text-[9px] text-slate-400 italic mb-4">分析“根本原因”（模型记忆模糊、步骤省略、读题理解偏差）。</p>
+                                <div class="evaluation-lines opacity-30">${Array(6).fill('<div></div>').join('')}</div>
+                            </div>
+                            <div class="mt-auto pt-6 border-t border-slate-100 text-center relative">
+                                <p class="text-[7px] text-slate-300 font-black uppercase tracking-widest">Pursuit of Excellence · v7.5.0 FINAL</p>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(wrap);
+                    App.initRadar(`radar-${idx}`, modules, studentMData, stats.mData, 'rgba(59, 130, 246, 0.08)');
+                });
+            },
+
+            initDistChart: (id, scores, full) => {
+                setTimeout(() => {
+                    const ctx = document.getElementById(id).getContext('2d');
+                    const bins = [0, 0, 0, 0, 0];
+                    scores.forEach(s => {
+                        const r = full > 0 ? (s/full)*100 : 0;
+                        if(r < 60) bins[0]++; else if(r < 70) bins[1]++; else if(r < 80) bins[2]++; else if(r < 90) bins[3]++; else bins[4]++;
+                    });
+
+                    const maxInBins = Math.max(...bins);
+
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: { 
+                            labels: [['待提升', '< 60'], ['合格', '60-69'], ['良好', '70-79'], ['优秀', '80-89'], ['卓越', '90+']], 
+                            datasets: [{ data: bins, backgroundColor: ['#f43f5e', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'], borderRadius: 10, barThickness: 40 }] 
+                        },
+                        options: { 
+                            layout: { padding: { top: 20 } },
+                            plugins: { 
+                                legend: { display: false }, 
+                                title: { 
+                                    display: true, 
+                                    text: '分段人数画像', 
+                                    font: { size: 12, weight: '900' },
+                                    padding: { top: 0, bottom: 30 } 
+                                } 
+                            },
+                            animation: {
+                                onComplete: function() {
+                                    const ci = this, ctx = ci.ctx;
+                                    ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                                    this.data.datasets.forEach((dataset, i) => {
+                                        ci.getDatasetMeta(i).data.forEach((bar, index) => {
+                                            ctx.fillStyle = '#64748b'; 
+                                            ctx.fillText(dataset.data[index] + '人', bar.x, bar.y - 8);
+                                        });
+                                    });
+                                }
+                            },
+                            scales: { 
+                                y: { 
+                                    beginAtZero: true, 
+                                    ticks: { stepSize: 1 },
+                                    suggestedMax: maxInBins + 1
+                                }, 
+                                x: { 
+                                    grid: { display: false }, 
+                                    ticks: { font: { size: 10, weight: '700' } } 
+                                } 
+                            }
+                        }
+                    });
+                }, 100);
+            },
+
+            initRadar: (id, labels, userData, classData, bgColor) => {
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const datasets = [
+                        {
+                            label: '学员得分率',
+                            data: userData,
+                            fill: true,
+                            backgroundColor: bgColor,
+                            borderColor: '#3b82f6',
+                            pointRadius: 2,
+                            pointBackgroundColor: '#3b82f6',
+                            borderWidth: 2,
+                            order: 1
+                        }
+                    ];
+                    if (classData) {
+                        datasets.push({
+                            label: '班级均分率',
+                            data: classData,
+                            fill: false,
+                            borderColor: '#94a3b8',
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            borderWidth: 1.5,
+                            order: 2
+                        });
+                    }
+                    new Chart(el, {
+                        type: 'radar',
+                        data: { labels, datasets },
+                        options: {
+                            scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false }, pointLabels: { font: { size: 9, weight: '800' }, color: '#64748b' } } },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }, 100);
+            },
+
+            exportZip: async () => {
+                const zip = new JSZip(), btn = document.getElementById('zipBtn');
+                const reports = document.querySelectorAll('.student-report-set');
+                const summaryCards = document.querySelectorAll('#summaryContainer .summary-card');
+                
+                document.body.classList.add('exporting');
+                btn.disabled = true;
+                
+                try {
+                    const summaryZone = document.getElementById('summaryZone');
+                    summaryZone.classList.remove('no-print');
+                    
+                    for(let j=0; j < summaryCards.length; j++) {
+                        const card = summaryCards[j];
+                        const classKey = card.dataset.key || `班级${j+1}`;
+                        btn.innerHTML = `<span class="loader"></span> 导出看板: ${j+1}/${summaryCards.length}`;
+                        
+                        const snap = await html2canvas(card, { scale: 2, useCORS: true });
+                        zip.file(`班级看板-${classKey}.png`, snap.toDataURL().split(',')[1], {base64: true});
+                    }
+                    summaryZone.classList.add('no-print');
+                    
+                    for(let i=0; i<reports.length; i++) {
+                        const el = reports[i];
+                        btn.innerHTML = `<span class="loader"></span> 生成PDF: ${i+1}/${reports.length}`;
+                        const pdfBlob = await html2pdf().from(el).set({
+                            margin: 0, filename: el.dataset.fname,
+                            image: { type: 'jpeg', quality: 1 },
+                            html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                            pagebreak: { mode: 'css', after: '.page-one-break' }
+                        }).output('blob');
+                        zip.file(el.dataset.fname, pdfBlob);
+                    }
+                    
+                    const content = await zip.generateAsync({type: "blob"});
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(content);
+                    a.download = `${App.store.title}_全套诊断数据包.zip`; a.click();
+                    btn.innerHTML = `打包导出 ZIP`;
+                } catch (err) {
+                    console.error(err); App.msg("导出失败", "error");
+                } finally {
+                    document.body.classList.remove('exporting'); btn.disabled = false;
+                }
+            }
+        };
+    </script>
+</body>
+</html>
