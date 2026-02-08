@@ -1,100 +1,105 @@
-<!DOCTYPE html> <html lang="zh-CN"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>摸鱼工具箱 | 个人工作室门户</title> <style> /* 网页的美容师：CSS 样式开始 */
-        body { /* 整个网页的背景设置 */
-            background-color: #f8f7fa; /* 使用奶油色偏紫的底色，增加呼吸感 */
-            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; /* 设置清爽的字体 */
+<!DOCTYPE html> <html lang="zh-CN"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>老师的工作室 | 3D 黏土工具箱</title> <style> /* CSS 开始：这里是捏出“黏土感”的魔法区 */
+        
+        body { /* 全局背景设置 */
+            background-color: #fcf9f2; /* 使用你要求的奶油色背景 */
+            font-family: 'PingFang SC', sans-serif; /* 设置清爽的字体 */
             display: flex; /* 开启弹性布局 */
             flex-direction: column; /* 内容垂直排列 */
             align-items: center; /* 水平居中 */
-            padding: 40px 20px; /* 上下留出空间 */
-            margin: 0; /* 清除默认间距 */
+            padding: 50px 20px; /* 上下留出足够的呼吸空间 */
+            margin: 0; /* 清除默认边距 */
         }
-        .header { /* 顶部的标题区域 */
-            text-align: center; /* 文字居中 */
-            margin-bottom: 40px; /* 距离下方工具卡片的距离 */
-        }
-        h1 { /* 主标题样式 */
+
+        .header h1 { /* 顶部大标题样式 */
             color: #6a5d8a; /* 莫兰迪深紫色 */
-            font-size: 28px; /* 字体大小 */
-            margin-bottom: 10px; /* 距离副标题的距离 */
+            font-size: 32px; /* 字体加大 */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.05); /* 给文字也加一点点立体影 */
         }
-        .subtitle { /* 副标题样式 */
-            color: #a79dc1; /* 浅紫灰色 */
-            font-size: 16px; /* 字号 */
+
+        .grid { /* 存放卡片的网格布局 */
+            display: grid; /* 开启网格模式 */
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* 自动排列卡片 */
+            gap: 30px; /* 卡片之间的距离，留足呼吸感 */
+            width: 100%; /* 宽度撑满 */
+            max-width: 1100px; /* 最大宽度限制 */
         }
-        .grid { /* 工具卡片的网格布局 */
-            display: grid; /* 开启网格布局 */
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* 自动适配屏幕宽度 */
-            gap: 25px; /* 卡片之间的间距 */
-            width: 100%; /* 宽度占满容器 */
-            max-width: 1000px; /* 最大宽度限制，防止在大屏幕上太散 */
-        }
-        .card { /* 单个工具卡片的样式 */
-            background: white; /* 纯白底色 */
-            border-radius: 24px; /* 3D 黏土风格的大圆角 */
-            padding: 25px; /* 内部留白 */
-            text-decoration: none; /* 去掉链接默认的下划线 */
-            color: #555; /* 文字颜色 */
-            transition: all 0.3s ease; /* 增加平滑的过渡动画 */
-            box-shadow: 0 10px 20px rgba(167, 157, 193, 0.1); /* 淡淡的紫色投影 */
-            border: 1px solid #f0edf5; /* 细微的边框，增加精致感 */
-            display: flex; /* 卡片内布局 */
+
+        .clay-card { /* 核心：这就是你要的 3D 黏土卡片 */
+            background: #ffffff; /* 卡片白底 */
+            border-radius: 35px; /* 超大圆角，捏出圆润感 */
+            padding: 30px; /* 内部留白 */
+            text-decoration: none; /* 去掉链接下划线 */
+            display: flex; /* 卡片内部也用弹性布局 */
             flex-direction: column; /* 垂直排列图标和文字 */
-            align-items: center; /* 水平居中 */
+            align-items: center; /* 居中 */
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 增加像弹簧一样的回弹动画 */
+            
+            /* 关键：多层阴影模拟黏土质感 */
+            /* 1. 外阴影：让卡片浮起来； 2. 内阴影：让边缘看起来像被捏过的浮雕 */
+            box-shadow: 
+                20px 20px 60px #d9d6ce, /* 右下方的深色阴影 */
+                -20px -20px 60px #ffffff, /* 左上方的亮色反光 */
+                inset 4px 4px 10px rgba(255,255,255,0.8), /* 内部高光，显出质感 */
+                inset -4px -4px 10px rgba(0,0,0,0.02); /* 内部微影 */
+            
+            border: 8px solid #ffffff; /* 宽厚的白边，更显立体 */
         }
-        .card:hover { /* 鼠标碰到卡片时的效果 */
-            transform: translateY(-8px); /* 卡片向上微微浮起 */
-            box-shadow: 0 15px 30px rgba(167, 157, 193, 0.2); /* 投影加深，显得更立体 */
-            border-color: #a79dc1; /* 边框颜色变深 */
+
+        .clay-card:hover { /* 鼠标碰到卡片时的互动 */
+            transform: scale(1.05); /* 卡片微微放大 */
+            box-shadow: 
+                10px 10px 30px #d9d6ce, /* 缩短阴影，模拟被按下去的感觉 */
+                -10px -10px 30px #ffffff;
         }
-        .icon { /* 卡片上方的 3D 小图标样式 */
-            font-size: 40px; /* 图标大小 */
-            margin-bottom: 15px; /* 距离标题的距离 */
+
+        .icon { /* 图标样式 */
+            font-size: 50px; /* 图标做大一点 */
+            margin-bottom: 20px; /* 距离标题的距离 */
+            filter: drop-shadow(4px 4px 8px rgba(0,0,0,0.1)); /* 给 Emoji 图标也加点立体影 */
         }
-        .tool-title { /* 工具名称样式 */
+
+        .title { /* 工具标题 */
+            font-size: 20px; /* 字号 */
             font-weight: bold; /* 加粗 */
-            font-size: 18px; /* 字号 */
-            color: #6a5d8a; /* 紫色 */
-            margin-bottom: 8px; /* 距离描述文字的距离 */
+            color: #7d7396; /* 莫兰迪紫色 */
+            margin-bottom: 10px; /* 间距 */
         }
-        .tool-desc { /* 工具描述样式词 */
+
+        .desc { /* 工具描述文字 */
             font-size: 14px; /* 字号略小 */
-            color: #999; /* 浅灰色文字 */
-            text-align: center; /* 居中 */
+            color: #a79dc1; /* 浅紫灰色 */
+            text-align: center; /* 文字居中 */
+            line-height: 1.6; /* 行间距 */
         }
+
     </style>
 </head>
 <body>
 
-    <div class="header"> <h1>🎨 摸鱼工具箱</h1> <div class="subtitle">让教育更简单，让工作更有趣</div> </div>
+    <div class="header"> <h1>🎨 摸鱼工具箱·3D 门户</h1> </div>
 
-    <div class="grid"> <a href="小学业务BI看板v2.0.1.html" class="card">
+    <div class="grid"> <a href="小学业务BI看板v2.0.1.html" class="clay-card">
             <div class="icon">📊</div>
-            <div class="tool-title">业务 BI 看板</div>
-            <div class="tool-desc">可视化数据，一眼看穿班级运营现状</div>
+            <div class="title">业务 BI 看板</div>
+            <div class="desc">数据可视化，让校区运营像做奥数题一样清晰逻辑</div>
         </a>
 
-        <a href="名卡制作器v2.0.html" class="card">
+        <a href="名卡制作器v2.0.html" class="clay-card">
             <div class="icon">🏷️</div>
-            <div class="tool-title">名卡制作器</div>
-            <div class="tool-desc">快速生成 3D 风格精美名片或卡片</div>
+            <div class="title">名卡制作器</div>
+            <div class="desc">一键生成 3D 风格卡片，尽显教师工作室品味</div>
         </a>
 
-        <a href="教学绩效模拟器.html" class="card">
+        <a href="教学绩效模拟器.html" class="clay-card">
             <div class="icon">💰</div>
-            <div class="tool-title">绩效模拟器</div>
-            <div class="tool-desc">输入工龄与学生数，精准核算薪资</div>
+            <div class="title">绩效模拟器</div>
+            <div class="desc">精准核算奖金与个税，老师们最爱的理财小助手</div>
         </a>
 
-        <a href="校区班级名额预警表v3.6.3.html" class="card">
-            <div class="icon">⚠️</div>
-            <div class="tool-title">名额预警表</div>
-            <div class="tool-desc">智能监控班级人数，动态预警招满情况</div>
-        </a>
-
-        <a href="智能作息表v1.8.html" class="card">
+        <a href="智能作息表v1.8.html" class="clay-card">
             <div class="icon">⏰</div>
-            <div class="tool-title">智能作息表</div>
-            <div class="tool-desc">科学规划每一分钟，让教学更有序</div>
+            <div class="title">智能作息表</div>
+            <div class="desc">科学规划教学时间，让每一分钟都有呼吸感</div>
         </a>
 
     </div> </body>
